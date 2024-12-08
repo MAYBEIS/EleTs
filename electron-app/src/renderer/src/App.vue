@@ -6,7 +6,7 @@ import mainWin from './view/mainWin.vue'
     <!-- 开发模式，窗口空白部分隐藏 -->
     <!-- <div class="AppAll flex scroll-hidden "> -->
     <!-- 调试模式，窗口背景铺满 -->
-    <div class="AppAll h-full w-full flex scroll-hidden bg-yellow-500 ">
+    <div class="AppAll h-full w-full flex scroll-hidden bg-yellow-500">
       <mainWin id="Index-win" class="h-full w-full overflow-hidden drag_able"></mainWin>
     </div>
 
