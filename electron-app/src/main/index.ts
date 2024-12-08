@@ -10,6 +10,28 @@ function createWindow(): void {
     height: 670,
     show: false,
     autoHideMenuBar: true,
+    alwaysOnTop: true, 
+    // // 最大和最小屏幕尺寸  
+    // // minWidth: 900,  
+    // // minHeight: 670,    // maxWidth: 1920,    // maxHeight: 1080,  
+    // // 页面顶部栏隐藏  
+    // // frame: false,  
+    // // 设置鼠标光标以表示可以拖拽  
+    // resizable: true,  
+    // //无边框开发环境  
+    // frame:false,  
+    // transparent:true,  
+    // autoHideMenuBar: true,  
+    // ...(process.platform === 'linux' ? { icon } : {}),  
+    // webPreferences: {  
+    //   // ...允许导入外部js  
+    //   nodeIntegration: true,  
+    //   contextIsolation: false,  
+    //   // 这里设置为 false 来允许跨域  
+    //   webSecurity: false,  
+    //   preload: join(__dirname, '../preload/index.js'),  
+    //   sandbox: false  
+    // }  
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

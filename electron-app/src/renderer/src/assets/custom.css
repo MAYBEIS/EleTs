@@ -1,0 +1,71 @@
+
+/* 禁止选取文本 */
+.no-select {
+user-select: none;
+}
+
+/* 允许选取文本 */
+.text-select {
+user-select: text;
+}
+
+/* 浏览器默认行为 */
+.auto-select {
+user-select: auto;
+}
+
+.c-css{
+/* 布局外廓线 */
+@apply border-2
+}
+
+.layout_flex_row {
+@apply flex flex-row;
+}
+
+.layout_flex_col {
+@apply flex flex-col ;
+}
+
+.svg-container {
+width: 50vw; /* 设置容器的宽度 */
+transition: transform 0.2s ease-in-out; /* 添加过渡效果，使变换平滑 */
+}
+
+.svg-container:hover {
+transform: scale(0.5); /* 悬停时放大 1.1 倍 */
+}
+
+
+.scroll-hidden {
+-ms-overflow-style: none;  /* IE and Edge */
+scrollbar-width: none;  /* Firefox */
+}
+.scroll-hidden::-webkit-scrollbar {
+display: none;  /* Chrome, Safari, and Opera */
+}
+
+
+.shadow-box{
+    --tw-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+}
+
+.sha_box {
+box-shadow: 10px 5px 5px 0px rgba(0, 0, 0, 0.25);
+}
+
+
+.drag_able{
+-webkit-app-region: drag
+}
+.drag_notable{
+-webkit-app-region: no-drag
+}
+
+.scroll-hidden {
+-ms-overflow-style: none;  /* IE and Edge */
+scrollbar-width: none;  /* Firefox */
+}
+.scroll-hidden::-webkit-scrollbar {
+display: none;  /* Chrome, Safari, and Opera */
+}
