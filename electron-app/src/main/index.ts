@@ -2,6 +2,16 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import electronLog from 'electron-log'
+
+// 使用 electronLog 捕获控制台的所有内容
+electronLog.transports.console.level = 'debug' // 设置控制台输出的日志级别, debug 为最低级别
+electronLog.transports.file.level = 'debug' // 设置文件输出的日志级别, debug 为最低级别
+// 设置日志文件的最大大小
+electronLog.transports.file.maxSize = 10 * 1024 * 1024 // 10 MB
+// 捕获控制台的所有内容
+Object.assign(console, electronLog.functions)
+export let mainWindow: BrowserWindow
 
 function createWindow(): void {
   // Create the browser window.
