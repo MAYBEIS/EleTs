@@ -5,7 +5,7 @@ import { join } from 'path'
 
 // import './handler/DownloadHandler'
 // import './ipc/handlers/global-hanlder'
-
+import './ipc/handler/test_handler'
 
 // 使用 electronLog 捕获控制台的所有内容
 electronLog.transports.console.level = 'debug' // 设置控制台输出的日志级别, debug 为最低级别
