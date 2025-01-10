@@ -11,3 +11,4 @@ const Vue_app = createApp(App)
 // Vue_app.use(router)
 // Vue_app.config.devtools = true;
 Vue_app.mount('#app');
+

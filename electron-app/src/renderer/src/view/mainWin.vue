@@ -3,7 +3,7 @@
 </template>
 
 <script setup>
-
+var ttest1 = ref(1)
 </script>
 
 <style scoped>

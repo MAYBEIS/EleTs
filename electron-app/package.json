@@ -18,7 +18,8 @@
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
-    "build:linux": "npm run build && electron-builder --linux"
+    "build:linux": "npm run build && electron-builder --linux",
+    "test": "jest"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.0",
@@ -40,6 +41,7 @@
     "@vue/eslint-config-typescript": "^13.0.0",
     "electron": "^31.0.2",
     "electron-builder": "^24.13.3",
+    "electron-mock-ipc": "^0.3.12",
     "electron-vite": "^2.3.0",
     "eslint": "^8.57.0",
     "eslint-plugin-vue": "^9.26.0",
@@ -47,6 +49,7 @@
     "prettier": "^3.3.2",
     "ts-jest": "^29.2.5",
     "typescript": "^5.5.2",
+    "unplugin-auto-import": "^19.0.0",
     "vite": "^5.3.1",
     "vue": "^3.4.30",
     "vue-tsc": "^2.0.22"
