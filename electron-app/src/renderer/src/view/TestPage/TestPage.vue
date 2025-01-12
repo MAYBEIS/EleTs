@@ -1,13 +1,16 @@
 <template>
     <n-tabs class="flex no-select" v-model:value="activeTab" @update:value="handleTabChange">
-        <n-tab-pane class="c-css no-select flex flex-grow flex-col space-y-40 justify-center items-center" name="tab1" tab="选项卡 1">
+        <n-tab-pane class="c-css no-select flex flex-grow flex-col space-y-12 justify-center items-center" name="tab1" tab="选项卡 1">
             <!-- <Button1></Button1> -->
-             <card1></card1>
-             <card2></card2>
+             <card1 class="c-css"></card1>
+             <card2 class="c-css"></card2>
+             <Button1 class="c-css"></Button1>
         </n-tab-pane>
         <n-tab-pane class="c-css no-select flex flex-grow flex-col space-y-40 justify-center items-center" name="tab2" tab="选项卡 2">
         </n-tab-pane>
         <n-tab-pane class="c-css no-select flex flex-grow flex-col space-y-40 justify-center items-center" name="tab3" tab="选项卡 3">
+        </n-tab-pane>
+        <n-tab-pane class="c-css no-select flex flex-grow flex-col space-y-40 justify-center items-center" name="tab4" tab="选项卡 4">
         </n-tab-pane>
       </n-tabs>
 </template>
