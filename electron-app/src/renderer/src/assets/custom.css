@@ -1,5 +1,5 @@
 
-/* 禁止选取文本 */
+/* 禁止选取事件 */
 .no-select {
 user-select: none;
 }
@@ -12,6 +12,14 @@ user-select: text;
 /* 浏览器默认行为 */
 .auto-select {
 user-select: auto;
+}
+
+/* 禁止选取文本 */
+.no-select {
+-webkit-user-select: none; /* Safari */
+-moz-user-select: none;    /* Firefox */
+-ms-user-select: none;     /* IE 10+ */
+user-select: none;         /* Standard syntax */
 }
 
 .c-css{
