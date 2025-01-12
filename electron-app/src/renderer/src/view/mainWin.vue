@@ -11,7 +11,7 @@ const v1 = ref("")
 
 onMounted(async () => {
   try {
-    v1.value = await ipcRenderer.invoke("T:Name1")
+    v1.value = await ipcRenderer.invoke("W-version-1.1")
   } catch (error) {
     console.error('IPC调用失败:', error)
     v1.value = "调用失败"
