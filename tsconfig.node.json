@@ -1,8 +1,18 @@
 {
-  "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
-  "include": ["electron.vite.config.*", "src/main/**/*", "src/preload/**/*"],
-  "compilerOptions": {
-    "composite": true,
-    "types": ["electron-vite/node"]
-  }
+    "compilerOptions": {
+        "target": "ES6",
+        "module": "commonjs",
+        "lib": ["ES6", "DOM", "ESNext.AsyncIterable"],
+        "strict": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true
+    },
+    "include": [    
+        "src/renderer/src/env.d.ts",
+        "src/renderer/src/**/*",
+        "src/renderer/src/**/*.vue",
+        "src/preload/*.d.ts"
+    ],
+    "exclude": ["node_modules"]
 }
