@@ -1,18 +1,23 @@
 {
     "compilerOptions": {
-        "target": "ES6",
-        "module": "commonjs",
-        "lib": ["ES6", "DOM", "ESNext.AsyncIterable"],
-        "strict": true,
-        "esModuleInterop": true,
-        "skipLibCheck": true,
-        "forceConsistentCasingInFileNames": true
+      "target": "ES6",
+      "module": "commonjs",
+      "lib": ["ES6", "DOM", "ESNext.AsyncIterable"],
+      "strict": true,
+      "esModuleInterop": true,
+      "skipLibCheck": true,
+      "forceConsistentCasingInFileNames": true,
+      "moduleResolution": "node",
+      "resolveJsonModule": true,
+      "baseUrl": ".",
+      "paths": {
+        "@render/*": ["src/render/src/*"]
+      },
     },
-    "include": [    
-        "src/renderer/src/env.d.ts",
-        "src/renderer/src/**/*",
-        "src/renderer/src/**/*.vue",
-        "src/preload/*.d.ts"
+    "include": [
+      "src/render/src/env.d.ts",
+      "src/render/src/**/*",
+      "src/preload/*.d.ts"
     ],
     "exclude": ["node_modules"]
-}
+  }

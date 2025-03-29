@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
-import { useStore } from '@renderer/store'
+import { useStore } from '@render/store'
 
 const store = useStore()
-const ipcRenderer = window.electron.ipcRenderer
+const ipcrender = window.electron.ipcrender
 
 onMounted(async () => {
   // onMounted

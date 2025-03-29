@@ -2,7 +2,7 @@ import { ipcMain } from 'electron';
 
 export function setupIpc() {
   ipcMain.handle('some-channel', async (event, arg) => {
-    console.log(`Received from renderer: ${arg}`);
+    console.log(`Received from render: ${arg}`);
     return `Hello, ${arg}`;
   });
 

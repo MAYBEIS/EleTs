@@ -16,11 +16,11 @@
       }
     },
     {
-      "name": "Debug Renderer Process",
+      "name": "Debug render Process",
       "port": 9222,
       "request": "attach",
       "type": "chrome",
-      "webRoot": "${workspaceFolder}/src/renderer",
+      "webRoot": "${workspaceFolder}/src/render",
       "timeout": 60000,
       "presentation": {
         "hidden": true
@@ -30,7 +30,7 @@
   "compounds": [
     {
       "name": "Debug All",
-      "configurations": ["Debug Main Process", "Debug Renderer Process"],
+      "configurations": ["Debug Main Process", "Debug render Process"],
       "presentation": {
         "order": 1
       }
