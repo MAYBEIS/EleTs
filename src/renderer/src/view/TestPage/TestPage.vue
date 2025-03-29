@@ -6,10 +6,10 @@
             <card2 class="c-css"></card2>
             <Button1 class="c-css"></Button1>
             <Card3 class="c-css"></Card3>
+            <div>1112311</div>
         </n-tab-pane>
         <n-tab-pane class="c-css no-select flex flex-grow flex-col space-y-40 justify-center items-center" name="tab2" tab="选项卡 2">
             <!-- <DevpageBone class="flex flex-grow h-full w-full justify-center items-center"></DevpageBone> -->
-             
         </n-tab-pane>
         <n-tab-pane class="c-css no-select flex flex-grow flex-col space-y-40 justify-center items-center" name="tab3" tab="选项卡 3">
         </n-tab-pane>
@@ -31,7 +31,7 @@ import DevpageBone from '../DevPage/DevpageBone.vue';
 const activeTab = ref<string>('tab1'); // 初始化激活的选项卡
 const handleTabChange = (value: string) => {
     console.log('tab change to ', value);
-};
+};scrollBy
 const changeTab = (tabName: string) => {
     activeTab.value = tabName;
 };
