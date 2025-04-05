@@ -6,7 +6,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 
-const ipcrender = window.electron.ipcrender
+const ipcrender = window.electron.ipcRenderer
 const v1 = ref("")
 
 onMounted(async () => {
