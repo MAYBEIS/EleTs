@@ -3,7 +3,7 @@ import { computed, ref, onMounted } from 'vue'
 // import { useStore } from '@renderer/store'
 
 // const store = useStore()
-const ipcrender = window.electron.ipcRenderer
+const ipcRenderer = window.electron.ipcRenderer
 
 onMounted(async () => {
   // onMounted

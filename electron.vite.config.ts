@@ -12,10 +12,10 @@ export default defineConfig({
   preload: {
     plugins: [externalizeDepsPlugin()]
   },
-  render: {
+  renderer: {
     resolve: {
       alias: {
-        '@render': resolve('src/render/src')
+        '@renderer': resolve('src/renderer')
       }
     },
     plugins: [

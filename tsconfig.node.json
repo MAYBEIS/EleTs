@@ -11,12 +11,12 @@
       "resolveJsonModule": true,
       "baseUrl": ".",
       "paths": {
-        "@render/*": ["src/render/src/*"]
+        "@renderer/*": ["src/renderer/src/*"]
       },
     },
     "include": [
-      "src/render/src/env.d.ts",
-      "src/render/src/**/*",
+      "src/renderer/src/env.d.ts",
+      "src/renderer/src/**/*",
       "src/preload/*.d.ts"
     ],
     "exclude": ["node_modules"]
