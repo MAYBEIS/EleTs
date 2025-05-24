@@ -1,12 +1,12 @@
 <template>
   <div class="clock-container">
     <!-- 数字时钟 -->
-    <div class="digital-clock">
+    <div v-if="showDigital" class="digital-clock">
       {{ hours }}:{{ minutes }}:{{ seconds }}
     </div>
     
     <!-- 模拟时钟 -->
-    <div class="analog-clock">
+    <div v-if="showAnalog" class="analog-clock">
       <div class="clock-face">
         <!-- 时钟刻度 -->
         <div v-for="n in 12" :key="n" class="hour-marker"
@@ -26,10 +26,34 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, onMounted, onUnmounted, defineComponent } from 'vue'
 
-// 时间数据
+
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue'
+
+// 定义组件名称（可选）
+defineOptions({
+  name: 'Clock'
+})
+
+// Props 类型定义
+interface Props {
+  showDigital?: boolean
+  showAnalog?: boolean
+}
+
+// Props 默认值
+const props = withDefaults(defineProps<Props>(), {
+  showDigital: true,
+  showAnalog: true
+})
+
+// 定义事件
+const emit = defineEmits<{
+  (e: 'timeUpdate', time: string): void
+}>()
+
+// 组件逻辑...
 const hours = ref('00')
 const minutes = ref('00')
 const seconds = ref('00')
@@ -50,21 +74,21 @@ const updateTime = () => {
   secondDegrees.value = now.getSeconds() * 6
   minuteDegrees.value = now.getMinutes() * 6 + now.getSeconds() * 0.1
   hourDegrees.value = now.getHours() * 30 + now.getMinutes() * 0.5
+
+  // 触发时间更新事件
+  emit('timeUpdate', `${hours.value}:${minutes.value}:${seconds.value}`)
 }
 
 let timer: NodeJS.Timeout
 
-// 组件挂载时启动定时器
 onMounted(() => {
-  updateTime() // 立即执行一次
+  updateTime()
   timer = setInterval(updateTime, 1000)
 })
 
-// 组件卸载时清除定时器
 onUnmounted(() => {
   clearInterval(timer)
 })
-
 </script>
 
 <style scoped>
