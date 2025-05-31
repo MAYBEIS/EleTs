@@ -11,6 +11,11 @@ const routes = [
     name: 'index',
     component: (): Promise<Component> => import('../view/App/MainWin.vue')
   },
+  {
+    path: '/toolbox',
+    name: 'toolbox',
+    component: (): Promise<Component> => import('../view/ToolBox/ToolBoxMain.vue')
+  },
 ]
 
 export const router = createRouter({

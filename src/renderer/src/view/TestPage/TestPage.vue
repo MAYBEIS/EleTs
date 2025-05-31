@@ -1,3 +1,11 @@
+<!--
+ * @Author: Maybe 1913093102@qq.com
+ * @Date: 2025-01-12 12:26:34
+ * @LastEditors: Maybe 1913093102@qq.com
+ * @LastEditTime: 2025-05-25 11:32:11
+ * @FilePath: \EleTs\src\renderer\src\view\TestPage\TestPage.vue
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+-->
 <template>
     <n-tabs class="flex no-select" v-model:value="activeTab" @update:value="handleTabChange">
         <n-tab-pane class="c-css no-select flex flex-grow flex-col space-y-12 justify-center items-center" name="tab1"
@@ -22,7 +30,8 @@
         </n-tab-pane>
         <n-tab-pane class="c-css no-select flex flex-grow flex-col space-y-40 justify-center items-center" name="tab3"
             tab="选项卡 3">
-            <DevpageBone class="flex flex-grow h-full w-full justify-center items-center"></DevpageBone>
+            <MainWin></MainWin>
+            <!-- <DevpageBone class="flex flex-grow h-full w-full justify-center items-center"></DevpageBone> -->
         </n-tab-pane>
         <n-tab-pane class="c-css no-select flex flex-grow flex-col space-y-40 justify-center items-center" name="tab4"
             tab="选项卡 4">
@@ -44,6 +53,7 @@ import Card3 from '../Components/Card3.vue';
 import Clock from '../Components/Clock.vue';
 import Card4 from '../Components/Card4.vue';
 import DevpageBone from '../DevPage/DevpageBone.vue';
+import MainWin from '../App/MainWin.vue';
 
 // 初始化激活的选项卡
 const activeTab = ref<string>('tab1'); 
