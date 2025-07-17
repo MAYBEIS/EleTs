@@ -1,3 +1,10 @@
+# EleTs自用开发项目模板
+electron+TS+Vue+tailwind+capacitor
+PC端+安卓移动端
+
+
+
+
 # electron-app
 
 An Electron application with Vue and TypeScript
