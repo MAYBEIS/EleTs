@@ -1,3 +1,11 @@
+/*
+ * @Author: Maybe 1913093102@qq.com
+ * @Date: 2024-12-08 15:34:41
+ * @LastEditors: Maybe 1913093102@qq.com
+ * @LastEditTime: 2025-07-21 18:50:43
+ * @FilePath: \EleTs\electron.vite.config.ts
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ */
 import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
@@ -15,6 +23,7 @@ export default defineConfig({
   renderer: {
     resolve: {
       alias: {
+        // 配置路径别名，@renderer 指向 src/renderer 目录
         '@renderer': resolve('src/renderer')
       }
     },
@@ -31,3 +40,4 @@ export default defineConfig({
     ]
   },
 })
+

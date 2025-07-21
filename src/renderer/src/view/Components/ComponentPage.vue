@@ -12,7 +12,7 @@ import Button2 from './Button/Button2.vue';
 </script>
 
 <template>
-    <div class="border-2 flex flex-row justify-center"> 
+    <div class="border-2 flex flex-col justify-center items-center"> 
         <!-- 自定义样式 -->
         <Button1 
           text="自定义按钮"
