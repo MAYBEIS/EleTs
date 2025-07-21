@@ -1,8 +1,8 @@
 <!--
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-01-12 12:26:34
- * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-05-25 11:32:11
+ * @LastEditors: Please set LastEditors
+ * @LastEditTime: 2025-07-21 13:41:06
  * @FilePath: \EleTs\src\renderer\src\view\TestPage\TestPage.vue
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 -->
@@ -59,7 +59,8 @@ import MainWin from '../App/MainWin.vue';
 const activeTab = ref<string>('tab1'); 
 const handleTabChange = (value: string) => {
     console.log('tab change to ', value);
-}; scrollBy
+    activeTab.value = value; // 添加这行来更新 activeTab
+};
 const changeTab = (tabName: string) => {
     activeTab.value = tabName;
 };
