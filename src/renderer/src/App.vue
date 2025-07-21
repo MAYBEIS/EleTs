@@ -1,8 +1,8 @@
 <!--
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2024-12-08 15:34:41
- * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-07-21 10:54:20
+ * @LastEditors: Please set LastEditors
+ * @LastEditTime: 2025-07-21 15:46:30
  * @FilePath: \EleTs\src\renderer\src\App.vue
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 -->
@@ -16,8 +16,8 @@ import TestPage from './view/TestPage/TestPage.vue';
     <!-- <div class="AppAll flex scroll-hidden "> -->
     <!-- 调试模式，窗口背景铺满 -->
     <div class="AppAll h-full w-full flex scroll-hidden bg-red-200">
-      <mainWin id="Index-win" class="h-full w-full overflow-hidden drag_able"></mainWin>
-       <TestPage id="Index-win" class="h-full w-full overflow-hidden drag_able"></TestPage>
+      <!-- <mainWin id="Index-win" class="h-full w-full overflow-hidden drag_able"></mainWin> -->
+      <TestPage id="Index-win" class="h-full w-full overflow-hidden drag_able"></TestPage>
     </div>
 
 </template>

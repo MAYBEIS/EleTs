@@ -1,3 +1,11 @@
+/*
+ * @Author: Maybe 1913093102@qq.com
+ * @Date: 2025-01-12 12:13:32
+ * @LastEditors: Maybe 1913093102@qq.com
+ * @LastEditTime: 2025-07-21 15:52:30
+ * @FilePath: \EleTs\src\renderer\src\router\index.ts
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ */
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { Component } from 'vue'
 
@@ -10,11 +18,6 @@ const routes = [
     path: '/index',
     name: 'index',
     component: (): Promise<Component> => import('../view/App/MainWin.vue')
-  },
-  {
-    path: '/toolbox',
-    name: 'toolbox',
-    component: (): Promise<Component> => import('../view/ToolBox/ToolBoxMain.vue')
   },
 ]
 
