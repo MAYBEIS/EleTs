@@ -14,10 +14,6 @@
     </header>
 
     <nav class="main-nav">
-      <Button1 @click="openPage('Page1')">页面1</Button1>
-      <Button1 @click="openPage('Page2')">页面2</Button1>
-      <Button1 @click="openPage('TestPage')">测试页面</Button1>
-      <Button1 @click="openPage('ToolBox')">工具箱</Button1>
     </nav>
 
     <div class="status-bar">
@@ -29,7 +25,6 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import Button1 from '../Components/Button1.vue'
 
 const ipcrender = window.electron.ipcRenderer
 const v1 = ref("")
