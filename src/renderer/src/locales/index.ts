@@ -3,6 +3,7 @@
  */
 import { createI18n } from 'vue-i18n'
 import zhCN from './zh-CN'
+import enUS from './en-US'
 
 // 获取浏览器语言或从本地存储获取
 const getDefaultLocale = (): string => {
@@ -16,6 +17,7 @@ const getDefaultLocale = (): string => {
 
 const messages = {
   'zh-CN': zhCN,
+  'en-US': enUS
 }
 
 export const i18n = createI18n({

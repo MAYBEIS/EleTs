@@ -1,6 +1,6 @@
-import { commonFolderMapper } from '../mapper/CommonFolderMapper'
-import CommonFolder from '../entity/Game/CommonFolder'
-import { checkPathExist } from '../../util/IpcUtil'
+import { commonFolderMapper } from '../../mapper/CommonFolderMapper'
+import CommonFolder from '../../entity/Game/CommonFolder'
+import { checkPathExist } from '../../../util/IpcUtil'
 
 /**
  * CommonFolder 业务服务层
