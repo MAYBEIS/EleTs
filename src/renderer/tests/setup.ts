@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-07-21 13:03:54
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-07-25 00:19:49
+ * @LastEditTime: 2025-07-25 00:37:48
  * @FilePath: \EleTs\src\renderer\tests\setup.ts
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -10,8 +10,8 @@ import { vi } from 'vitest'
 import 'fake-indexeddb/auto'
 
 // 设置 IndexedDB 模拟
-global.indexedDB = require('fake-indexeddb')
-global.IDBKeyRange = require('fake-indexeddb/lib/FDBKeyRange')
+// global.indexedDB = require('fake-indexeddb')
+// global.IDBKeyRange = require('fake-indexeddb/lib/FDBKeyRange')
 
 // Mock Electron APIs
 global.window = Object.assign(global.window || {}, {
