@@ -217,23 +217,38 @@ describe('CommonFolderService 数据库功能测试', () => {
 
   describe('validateAndCleanup - 验证和清理功能', () => {
     beforeEach(async () => {
-      // 添加测试数据
-      vi.mocked(checkPathExist)
-        .mockResolvedValueOnce(true) // 第一个文件夹路径存在
-        .mockResolvedValueOnce(true) // 第二个文件夹路径存在
-        .mockResolvedValueOnce(true) // 第三个文件夹路径存在
+      // 重置 mock 状态
+      vi.clearAllMocks()
+      
+      // 为添加文件夹操作 mock 路径存在
+      vi.mocked(checkPathExist).mockResolvedValue(true)
 
+      // 添加测试数据
       await service.addFolder('有效文件夹1', '/valid/path1', 'game1')
       await service.addFolder('有效文件夹2', '/valid/path2', 'game1')
       await service.addFolder('无效文件夹', '/invalid/path', 'game2')
+      
+      // 清除之前的 mock 调用记录
+      vi.clearAllMocks()
     })
 
     it('应该清理无效路径的文件夹', async () => {
-      // Mock 路径检查结果
-      vi.mocked(checkPathExist)
-        .mockResolvedValueOnce(true)  // 第一个文件夹有效
-        .mockResolvedValueOnce(true)  // 第二个文件夹有效
-        .mockResolvedValueOnce(false) // 第三个文件夹无效
+      // 为 validateAndCleanup 中的路径检查设置 mock
+      // 注意：这里需要按照数据库中文件夹的顺序来设置 mock 返回值
+      const mockCheckPath = vi.mocked(checkPathExist)
+      
+      // 先获取当前所有文件夹，确定顺序
+      const allFolders = await service.getAllFolders()
+      console.log('文件夹顺序:', allFolders.map(f => f.path))
+      
+      // 根据实际的文件夹顺序设置 mock
+      allFolders.forEach(folder => {
+        if (folder.path === '/invalid/path') {
+          mockCheckPath.mockResolvedValueOnce(false) // 无效路径
+        } else {
+          mockCheckPath.mockResolvedValueOnce(true)  // 有效路径
+        }
+      })
 
       const result = await service.validateAndCleanup()
 
@@ -325,5 +340,6 @@ describe('CommonFolderService 数据库功能测试', () => {
     })
   })
 })
+
 
 

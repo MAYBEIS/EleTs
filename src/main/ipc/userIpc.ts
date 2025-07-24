@@ -45,6 +45,16 @@ export function initUserIpc() {
    */
   ipcMain.handle('user:create', async (_, userData: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<ApiResponse<Omit<User, 'password'>>> => {
     try {
+      // 添加参数验证
+      if (!userData || typeof userData !== 'object') {
+        return { success: false, message: '创建用户失败：无效的用户数据' }
+      }
+
+      // 验证必需字段
+      if (!userData.name || !userData.email || !userData.password) {
+        return { success: false, message: '创建用户失败：缺少必需字段' }
+      }
+
       // 检查邮箱是否已存在
       const existingUser = users.find(u => u.email === userData.email)
       if (existingUser) {
@@ -386,3 +396,6 @@ export function clearAllUsers(): void {
   currentUserId = 1
   console.log('已清空所有用户数据')
 }
+
+
+

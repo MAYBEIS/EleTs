@@ -84,11 +84,30 @@ describe('用户 IPC 处理程序测试', () => {
     })
 
     it('应该正确处理创建用户时的异常', async () => {
-      // 通过传入无效数据来触发异常
-      const result = await callIpcHandler('user:create', null)
-
+      // 测试1: 传入 undefined
+      let result = await callIpcHandler('user:create', undefined)
       expect(result.success).toBe(false)
-      expect(result.message).toBe('创建用户失败')
+      expect(result.message).toContain('创建用户失败')
+
+      // 测试2: 传入 null
+      result = await callIpcHandler('user:create', null)
+      expect(result.success).toBe(false)
+      expect(result.message).toContain('创建用户失败')
+
+      // 测试3: 传入空对象
+      result = await callIpcHandler('user:create', {})
+      expect(result.success).toBe(false)
+      expect(result.message).toContain('创建用户失败')
+
+      // 测试4: 缺少必需字段
+      result = await callIpcHandler('user:create', { name: '测试' })
+      expect(result.success).toBe(false)
+      expect(result.message).toContain('创建用户失败')
+
+      // 测试5: 传入非对象类型
+      result = await callIpcHandler('user:create', 'invalid')
+      expect(result.success).toBe(false)
+      expect(result.message).toContain('创建用户失败')
     })
   })
 
@@ -552,3 +571,7 @@ describe('用户 IPC 处理程序测试', () => {
     })
   })
 })
+
+
+
+
