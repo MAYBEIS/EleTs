@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-01-12 12:26:34
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-07-21 17:29:56
+ * @LastEditTime: 2025-07-24 15:23:58
  * @FilePath: \EleTs\src\renderer\src\view\TestPage\TestPage.vue
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 -->
@@ -18,6 +18,7 @@
         </n-tab-pane>
         <n-tab-pane class="no-select flex flex-grow flex-col space-y-40 justify-center items-center" name="tab3"
             tab="选项卡 3">
+            <SystemInfoPage class="c-css flex h-full w-full" />
         </n-tab-pane>
         <n-tab-pane class="no-select flex flex-grow flex-col space-y-40 justify-center items-center" name="tab4"
             tab="选项卡 4">
@@ -43,6 +44,7 @@ import "../../assets/custom.css"
 import { NCard, NTabs, NTabPane, NButton, NDivider, NTooltip } from 'naive-ui';
 import HomePage from '../HomePage/HomePage.vue';
 import ComponentPage from '../Components/ComponentPage.vue';
+import SystemInfoPage from '../SystemInfo/SystemInfoPage.vue';
 
 // 初始化激活的选项卡
 const activeTab = ref<string>('tab1'); 
