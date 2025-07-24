@@ -3,11 +3,6 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import electronLog from 'electron-log'
 import { join } from 'path'
 
-// import './handler/DownloadHandler'
-// import './ipc/handlers/global-hanlder'
-// import './ipc/handler/test_handler'
-// import './TDO/TDOhandler'
-// import "./TDO/MainHandler"
 
 
 // 使用 electronLog 捕获控制台的所有内容
