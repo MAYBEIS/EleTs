@@ -1,3 +1,11 @@
+/*
+ * @Author: Maybe 1913093102@qq.com
+ * @Date: 2025-07-21 13:03:54
+ * @LastEditors: Maybe 1913093102@qq.com
+ * @LastEditTime: 2025-07-25 00:19:49
+ * @FilePath: \EleTs\src\renderer\tests\setup.ts
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ */
 import { vi } from 'vitest'
 import 'fake-indexeddb/auto'
 
@@ -17,53 +25,31 @@ global.window = Object.assign(global.window || {}, {
   }
 })
 
-// Mock Vue 组件 - 全局处理 .vue 文件
-vi.mock(/\.vue$/, () => ({
+// 使用字符串匹配而不是正则表达式来避免 id.replace 错误
+vi.mock('*.css', () => ({}))
+vi.mock('*.less', () => ({}))
+vi.mock('*.scss', () => ({}))
+vi.mock('*.sass', () => ({}))
+
+// Vue 组件 mock - 使用字符串匹配
+vi.mock('*.vue', () => ({
   default: {
     name: 'MockedComponent',
-    template: '<div>Mocked Component</div>',
-    props: {},
-    data: () => ({}),
-    methods: {}
+    render: () => null
   }
 }))
 
-// Mock Vue Router
-vi.mock('vue-router', () => ({
-  createRouter: vi.fn(() => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    go: vi.fn(),
-    back: vi.fn(),
-    forward: vi.fn()
-  })),
-  createWebHistory: vi.fn(),
-  useRouter: vi.fn(() => ({
-    push: vi.fn(),
-    replace: vi.fn()
-  })),
-  useRoute: vi.fn(() => ({
-    params: {},
-    query: {},
-    path: '/'
-  }))
-}))
-
-// Mock Naive UI 组件
-vi.mock('naive-ui', () => ({
-  NTabs: { template: '<div class="n-tabs"><slot></slot></div>' },
-  NTabPane: { template: '<div class="n-tab-pane"><slot></slot></div>' },
-  NButton: { template: '<button><slot></slot></button>' },
-  NCard: { template: '<div class="n-card"><slot></slot></div>' }
-}))
-
-// Mock console
+// Mock console 但保持基本功能
+const originalConsole = global.console
 global.console = {
-  ...console,
+  ...originalConsole,
   log: vi.fn(),
-  error: vi.fn(),
+  error: originalConsole.error, // 保留错误输出用于调试
   warn: vi.fn(),
   info: vi.fn(),
   debug: vi.fn()
 }
+
+
+
 

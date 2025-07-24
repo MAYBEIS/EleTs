@@ -1,4 +1,17 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+/*
+ * @Author: Maybe 1913093102@qq.com
+ * @Date: 2025-07-21 13:04:35
+ * @LastEditors: Maybe 1913093102@qq.com
+ * @LastEditTime: 2025-07-25 00:26:07
+ * @FilePath: \EleTs\src\renderer\tests\db\CommonDatabase.test.ts
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ */
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+
+// 在导入数据库模块之前，确保不要 mock 它们
+vi.unmock('@renderer/db/index')
+vi.unmock('@renderer/db/entity/Game/CommonFolder')
+
 import { commonDatabase, clearCommonFolderDatabase } from '@renderer/db/index'
 import CommonFolder from '@renderer/db/entity/Game/CommonFolder'
 
