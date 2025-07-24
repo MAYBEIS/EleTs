@@ -3,6 +3,13 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import electronLog from 'electron-log'
 import { join } from 'path'
 
+// 导入通信框架
+import { setupIpc } from './ipc'
+import { ServiceManager } from './service/ServiceManager'
+import { SystemMonitorService } from './service/SystemMonitorService'
+import { HardwareInfoService } from './service/HardwareInfoService'
+import { NetworkService } from './service/NetworkService'
+
 // import './handler/DownloadHandler'
 // import './ipc/handlers/global-hanlder'
 // import './ipc/handler/test_handler'
@@ -75,7 +82,7 @@ if (!gotTheLock) {
     }
   })
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     electronApp.setAppUserModelId('com.electron')
 
     app.on('browser-window-created', (_, window) => {
@@ -86,6 +93,12 @@ if (!gotTheLock) {
       }
     })
 
+    // 初始化服务
+    await initializeServices()
+
+    // 设置IPC通信
+    setupIpc()
+
     mainWindow = createWindow()
 
     app.on('activate', function () {
@@ -93,11 +106,40 @@ if (!gotTheLock) {
     })
   })
 
-  app.on('window-all-closed', () => {
+  app.on('window-all-closed', async () => {
+    // 销毁所有服务
+    const serviceManager = ServiceManager.getInstance()
+    await serviceManager.destroyAll()
+
     if (process.platform !== 'darwin') {
       app.quit()
     }
   })
+}
+
+/**
+ * 初始化所有服务
+ */
+async function initializeServices(): Promise<void> {
+  try {
+    const serviceManager = ServiceManager.getInstance()
+
+    // 注册系统监控服务
+    await serviceManager.registerService(new SystemMonitorService())
+    console.log('SystemMonitorService registered')
+
+    // 注册硬件信息服务
+    await serviceManager.registerService(new HardwareInfoService())
+    console.log('HardwareInfoService registered')
+
+    // 注册网络服务
+    await serviceManager.registerService(new NetworkService())
+    console.log('NetworkService registered')
+
+    console.log('All services initialized successfully')
+  } catch (error) {
+    console.error('Failed to initialize services:', error)
+  }
 }
 
 // IPC test
