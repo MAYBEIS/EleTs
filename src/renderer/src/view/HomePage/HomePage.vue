@@ -2,12 +2,12 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-07-21 16:26:29
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-07-21 17:23:28
+ * @LastEditTime: 2025-07-25 17:08:19
  * @FilePath: \EleTs\src\renderer\src\view\HomePage\HomePage.vue
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 -->
 <template>
-  <div class="home-page">
+  <div class="home-page h-full w-full">
     <n-layout has-sider>
       <!-- 左侧边栏 -->
       <n-layout-sider
@@ -234,7 +234,7 @@ const toggleTheme = () => {
 
 
 .home-page {
-  height: 100vh;
+  height: 100%;
   width: 100%;
 }
 
@@ -246,7 +246,7 @@ const toggleTheme = () => {
 }
 
 .page-content {
-  min-height: 400px;
+  min-height: 100vh;
 }
 
 

@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2024-12-08 15:34:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-07-25 10:54:23
+ * @LastEditTime: 2025-07-25 17:07:06
  * @FilePath: \EleTs\src\renderer\src\App.vue
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 -->
@@ -32,7 +32,7 @@ const handleWelcomeComplete = () => {
       :onComplete="handleWelcomeComplete" 
       />
       <!-- <MainInterface v-else /> -->
-      <HomePage v-else id="Index-win" class="h-full w-full overflow-hidden drag_able"></HomePage>
+      <HomePage v-else id="Index-win" class="h-full w-full overflow-hidden drag_notable"></HomePage>
     </div>
 
 </template>
@@ -48,6 +48,16 @@ const handleWelcomeComplete = () => {
 </style>
 
 <style scoped>
+
+/* 确保 html 和 body 全屏 */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
 .AppAll {
   width: 100vw;
   height: 100vh;
