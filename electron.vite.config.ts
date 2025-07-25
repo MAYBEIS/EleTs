@@ -15,16 +15,29 @@ import Components from 'unplugin-auto-import'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
+    resolve: {
+      alias: {
+        '@main': resolve('src/main'),
+        '@shared': resolve('src/shared')
+      }
+    }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
+    resolve: {
+      alias: {
+        '@main': resolve('src/main'),
+        '@shared': resolve('src/shared')
+      }
+    }
   },
   renderer: {
     resolve: {
       alias: {
-        // 配置路径别名，@renderer 指向 src/renderer 目录
-        '@renderer': resolve('src/renderer/src')
+        '@renderer': resolve('src/renderer/src'),
+        '@main': resolve('src/main'),
+        '@shared': resolve('src/shared')
       }
     },
     plugins: [
@@ -37,4 +50,5 @@ export default defineConfig({
     ]
   },
 })
+
 
