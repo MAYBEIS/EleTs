@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2024-12-08 15:34:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-07-25 09:45:21
+ * @LastEditTime: 2025-07-25 10:54:23
  * @FilePath: \EleTs\src\renderer\src\App.vue
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 -->
@@ -10,6 +10,14 @@
 <script setup>
 import TestPage from './view/TestPage/TestPage.vue';
 import HomePage from './view/HomePage/HomePage.vue';
+import WelcomeAnimation from './view/FigmaUi/WelcomeAnimation.vue';
+import MainInterface from './view/FigmaUi/MainInterface.vue';
+
+const showWelcome = ref(true)
+
+const handleWelcomeComplete = () => {
+  showWelcome.value = false
+}
 </script>
 
 <template>
@@ -17,8 +25,14 @@ import HomePage from './view/HomePage/HomePage.vue';
     <!-- <div class="AppAll flex scroll-hidden "> -->
     <!-- 调试模式，窗口背景铺满 -->
     <div class="AppAll h-full w-full flex scroll-hidden bg-red-200">
-      <HomePage id="Index-win" class="h-full w-full overflow-hidden drag_able"></HomePage>
+
       <!-- <TestPage id="Index-win" class="h-full w-full overflow-hidden drag_able "></TestPage> -->
+      <WelcomeAnimation 
+      v-if="showWelcome" 
+      :onComplete="handleWelcomeComplete" 
+      />
+      <!-- <MainInterface v-else /> -->
+      <HomePage v-else id="Index-win" class="h-full w-full overflow-hidden drag_able"></HomePage>
     </div>
 
 </template>
