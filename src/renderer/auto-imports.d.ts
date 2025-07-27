@@ -6,7 +6,20 @@
 // biome-ignore lint: disable
 export {}
 declare global {
+  const Dialog: typeof import('@headlessui/vue')['Dialog']
+  const DialogPanel: typeof import('@headlessui/vue')['DialogPanel']
+  const DialogTitle: typeof import('@headlessui/vue')['DialogTitle']
   const EffectScope: typeof import('vue')['EffectScope']
+  const Listbox: typeof import('@headlessui/vue')['Listbox']
+  const ListboxButton: typeof import('@headlessui/vue')['ListboxButton']
+  const ListboxOption: typeof import('@headlessui/vue')['ListboxOption']
+  const ListboxOptions: typeof import('@headlessui/vue')['ListboxOptions']
+  const Menu: typeof import('@headlessui/vue')['Menu']
+  const MenuButton: typeof import('@headlessui/vue')['MenuButton']
+  const MenuItem: typeof import('@headlessui/vue')['MenuItem']
+  const MenuItems: typeof import('@headlessui/vue')['MenuItems']
+  const TransitionChild: typeof import('@headlessui/vue')['TransitionChild']
+  const TransitionRoot: typeof import('@headlessui/vue')['TransitionRoot']
   const computed: typeof import('vue')['computed']
   const createApp: typeof import('vue')['createApp']
   const customRef: typeof import('vue')['customRef']
