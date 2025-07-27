@@ -62,7 +62,7 @@
     "@rushstack/eslint-patch": "^1.10.3",
     "@types/jest": "^29.5.14",
     "@types/node": "^20.14.8",
-    "@vitejs/plugin-vue": "^5.2.1",
+    "@vitejs/plugin-vue": "^6.0.0",
     "@vitest/ui": "^1.0.0",
     "@vue/eslint-config-prettier": "^9.0.0",
     "@vue/eslint-config-typescript": "^13.0.0",

@@ -333,6 +333,12 @@ const selectFile = () => {
 
 // 处理文件
 const processFile = (file: File) => {
+  // 检查文件大小限制（10MB）
+  if (file.size > 10 * 1024 * 1024) {
+    showNotification('文件大小不能超过10MB')
+    return // 直接返回，不处理文件
+  }
+  
   fileInfo.value = {
     name: file.name,
     size: file.size,
