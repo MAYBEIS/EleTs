@@ -57,24 +57,34 @@
           :key="category.id"
           @click="selectedCategory = category.id; selectedTool = null"
           :class="[
-            'w-full flex items-center rounded-lg text-left transition-all duration-200 border no-select relative overflow-hidden',
-            sidebarCollapsed ? 'px-3 py-3 justify-center' : 'px-4 py-3',
+            'w-full h-12 flex items-center rounded-lg text-left transition-all duration-300 border no-select relative overflow-hidden',
             selectedCategory === category.id
               ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
               : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 border-transparent'
           ]"
           :title="sidebarCollapsed ? category.name : ''"
         >
-          <component :is="category.icon" class="h-5 w-5 flex-shrink-0" />
+          <!-- 图标 - 使用固定定位避免闪烁 -->
+          <div 
+            class="absolute top-1/2 -translate-y-1/2 transition-all duration-300 ease-out"
+            :style="{ 
+              left: sidebarCollapsed ? '50%' : '16px',
+              transform: sidebarCollapsed ? 'translate(-50%, -50%)' : 'translateY(-50%)'
+            }"
+          >
+            <component :is="category.icon" class="h-5 w-5 flex-shrink-0" />
+          </div>
           
-          <!-- 文字内容 - 使用绝对定位避免布局变化 -->
-          <div class="absolute left-12 right-4 flex items-center justify-between transition-all duration-300 ease-out"
-               :style="{ 
-                 transform: sidebarCollapsed ? 'translateX(100%)' : 'translateX(0)',
-                 opacity: sidebarCollapsed ? 0 : 1
-               }">
+          <!-- 文字内容 -->
+          <div 
+            class="absolute left-12 right-4 top-1/2 -translate-y-1/2 flex items-center justify-between transition-all duration-300 ease-out"
+            :style="{ 
+              opacity: sidebarCollapsed ? 0 : 1,
+              transform: sidebarCollapsed ? 'translate(20px, -50%)' : 'translateY(-50%)'
+            }"
+          >
             <div class="flex-1 min-w-0">
-              <div class="font-medium truncate">{{ category.name }}</div>
+              <div class="font-medium truncate text-sm">{{ category.name }}</div>
               <div class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ category.description }}</div>
             </div>
             <div class="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full flex-shrink-0 min-w-[2rem] text-center ml-3">
@@ -86,22 +96,33 @@
 
       <!-- 底部主题切换 -->
       <div class="border-t border-gray-200 dark:border-gray-700 no-select">
-        <div :class="sidebarCollapsed ? 'p-2' : 'p-4'">
+        <div class="p-4">
           <button
             @click="toggleTheme"
             :class="[
-              'w-full flex items-center rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors no-select relative overflow-hidden',
-              sidebarCollapsed ? 'justify-center px-3 py-3' : 'px-4 py-2'
+              'w-full h-10 flex items-center rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors no-select relative overflow-hidden'
             ]"
             :title="sidebarCollapsed ? (isDark ? '切换到亮色' : '切换到暗色') : ''"
           >
-            <component :is="isDark ? SunIcon : MoonIcon" class="h-5 w-5 flex-shrink-0" />
+            <!-- 主题图标 -->
+            <div 
+              class="absolute top-1/2 -translate-y-1/2 transition-all duration-300 ease-out"
+              :style="{ 
+                left: sidebarCollapsed ? '50%' : '16px',
+                transform: sidebarCollapsed ? 'translate(-50%, -50%)' : 'translateY(-50%)'
+              }"
+            >
+              <component :is="isDark ? SunIcon : MoonIcon" class="h-5 w-5 flex-shrink-0" />
+            </div>
+            
             <!-- 主题切换文字 -->
-            <span class="absolute left-12 transition-all duration-300 ease-out text-sm"
-                  :style="{ 
-                    transform: sidebarCollapsed ? 'translateX(100%)' : 'translateX(0)',
-                    opacity: sidebarCollapsed ? 0 : 1
-                  }">
+            <span 
+              class="absolute left-12 top-1/2 -translate-y-1/2 text-sm transition-all duration-300 ease-out"
+              :style="{ 
+                opacity: sidebarCollapsed ? 0 : 1,
+                transform: sidebarCollapsed ? 'translate(20px, -50%)' : 'translateY(-50%)'
+              }"
+            >
               {{ isDark ? '切换到亮色' : '切换到暗色' }}
             </span>
           </button>
