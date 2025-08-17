@@ -26,6 +26,7 @@ describe('TestPage 组件测试', () => {
     const component = createTestPageLogic()
     
     expect(component.activeTab).toBe('tab1')
+    
   })
 
   it('handleTabChange 方法应该正确切换标签页', () => {

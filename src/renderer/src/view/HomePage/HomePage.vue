@@ -154,6 +154,9 @@
           <!-- Base64编码工具 -->
           <Base64Tool v-if="selectedTool.id === 'base64-encoder'" @back="selectedTool = null" />
           
+          <!-- URL编码工具 -->
+          <UrlEncoderTool v-else-if="selectedTool.id === 'url-encoder'" @back="selectedTool = null" />
+          
           <!-- 其他工具组件 -->
           <div v-else class="no-select">
             <p class="text-gray-500">{{ selectedTool.name }} 功能开发中...</p>
@@ -298,6 +301,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Base64Tool from './tools/Base64Tool.vue'
+import UrlEncoderTool from './tools/UrlEncoderTool.vue'
 import {
   ArrowLeftIcon,
   DocumentTextIcon,
@@ -318,6 +322,7 @@ import {
   KeyIcon,
   ShieldCheckIcon,
   WifiIcon,
+  LinkIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   MagnifyingGlassIcon,
@@ -382,6 +387,14 @@ const categories = [
         icon: KeyIcon,
         tags: ['编码', 'Base64'],
         lastUsed: '1天前'
+      },
+      {
+        id: 'url-encoder',
+        name: 'URL编码',
+        description: 'URL编码解码工具',
+        icon: LinkIcon,
+        tags: ['编码', 'URL'],
+        lastUsed: '刚刚'
       },
       {
         id: 'hash-generator',
