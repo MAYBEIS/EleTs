@@ -68,7 +68,25 @@ export default defineConfig({
         // 自动导入组件
         resolvers: []
       })
-    ]
+    ],
+    build: {
+      minify: 'terser',
+      terserOptions: {
+        compress: {
+          drop_console: true, // 删除console语句
+          drop_debugger: true, // 删除debugger语句
+          pure_funcs: ['console.log'] // 删除指定的函数调用
+        },
+        mangle: {
+          properties: {
+            regex: /^__/ // 混淆属性名（以__开头）
+          }
+        },
+        format: {
+          comments: false // 删除注释
+        }
+      }
+    }
   },
 })
 

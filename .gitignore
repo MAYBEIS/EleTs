@@ -4,3 +4,6 @@ out
 .DS_Store
 *.log*
 .vscode
+.claude
+.claude/settings.local.json
+nul
