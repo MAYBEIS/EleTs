@@ -9,6 +9,18 @@ files:
   - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!dist/**/*'
+  - '!build/**/*'
+  - '!**/*.{md,log}'
+  - '!{electron.vite.config.{js,ts,mjs,cjs},vitest.config.ts,vitest.workspace.ts}'
+  - '!{tsconfig*.json,tailwind.config.js,postcss.config.js}'
+  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml}'
+  - '!{jest.config.js,capacitor.config.ts}'
+  - '!android/**/*'
+  - '!tests/**/*'
+  - '!scripts/**/*'
+  - '!{my-release-key.jks}'
+  - '!.claude/*'
 asarUnpack:
   - resources/**
 win:
