@@ -10,8 +10,7 @@
 <script setup>
 import TestPage from './view/TestPage/TestPage.vue';
 import HomePage from './view/HomePage/HomePage.vue';
-import WelcomeAnimation from './view/FigmaUi/WelcomeAnimation.vue';
-import MainInterface from './view/FigmaUi/MainInterface.vue';
+import WelcomeAnimation from './view/Components/Loader/WelcomeAnimation.vue';
 
 const showWelcome = ref(true)
 
