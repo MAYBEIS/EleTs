@@ -157,6 +157,9 @@
           <!-- URL编码工具 -->
           <UrlEncoderTool v-else-if="selectedTool.id === 'url-encoder'" @back="selectedTool = null" />
           
+          <!-- 哈希生成工具 -->
+          <HashGeneratorTool v-else-if="selectedTool.id === 'hash-generator'" @back="selectedTool = null" />
+          
           <!-- 其他工具组件 -->
           <div v-else class="no-select">
             <p class="text-gray-500">{{ selectedTool.name }} 功能开发中...</p>
@@ -302,6 +305,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Base64Tool from './tools/Base64Tool.vue'
 import UrlEncoderTool from './tools/UrlEncoderTool.vue'
+import HashGeneratorTool from './tools/HashGeneratorTool.vue'
 import {
   ArrowLeftIcon,
   DocumentTextIcon,
