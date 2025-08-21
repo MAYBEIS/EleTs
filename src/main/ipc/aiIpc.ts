@@ -6,12 +6,12 @@
 import { mainWindow } from '..'
 import { ipcMain, app } from 'electron'
 import { HttpsProxyAgent } from 'https-proxy-agent'
-import nodeFetch from 'node-fetch'
 
 /**
  * 初始化 AI IPC 处理程序
  * 注册所有 AI 相关的 IPC 监听器
  */
+
 export function initAiIpc() {
   // ==================== IPC 通信处理 ====================
 
@@ -52,6 +52,9 @@ export function initAiIpc() {
       const { proxy, useSystemProxy } = options;
       delete options.proxy; // 从选项中移除代理设置，避免传递给 fetch
       delete options.useSystemProxy; // 从选项中移除系统代理设置
+      
+      // 动态导入 node-fetch
+      const { default: nodeFetch } = await import('node-fetch');
       
       // 如果启用了系统代理，则使用系统代理
       if (useSystemProxy) {
@@ -109,6 +112,7 @@ export function initAiIpc() {
       // 例如：使用 Node.js 的 fs 和 https 模块下载文件
       console.log('开始下载模型:', url, filename)
       // 使用 node-fetch 下载文件
+      const { default: nodeFetch } = await import('node-fetch');
       const response = await nodeFetch(url);
       if (!response.ok) {
         throw new Error(`下载失败: ${response.status} ${response.statusText}`);
@@ -158,6 +162,8 @@ export function initAiIpc() {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超时
           
+          // 动态导入 node-fetch
+          const { default: nodeFetch } = await import('node-fetch');
           const response = await nodeFetch('https://www.google.com', {
             agent: agent,
             signal: controller.signal
