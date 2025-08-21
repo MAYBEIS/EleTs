@@ -33,6 +33,12 @@ const total = ref(0)
 const searchQuery = ref('')
 const selectedType = ref('')
 
+// 显示模式相关
+const displayMode = ref('detailed') // 'detailed' 或 'compact'
+const toggleDisplayMode = () => {
+  displayMode.value = displayMode.value === 'detailed' ? 'compact' : 'detailed'
+}
+
 // 模型类型
 const modelTypes = [
   { value: '', label: '全部类型' },
@@ -398,6 +404,11 @@ onMounted(() => {
                 :value="option.value"
               />
             </el-select>
+            
+            <!-- 显示模式切换按钮 -->
+            <el-button @click="toggleDisplayMode">
+              {{ displayMode === 'detailed' ? '简洁模式' : '详细模式' }}
+            </el-button>
           </div>
 
           <!-- 模型列表 -->
@@ -408,73 +419,81 @@ onMounted(() => {
               class="model-card"
               :body-style="{ padding: '0' }"
             >
-              <div class="relative h-64">
-                <img :src="model.imageUrl" :alt="model.name" class="w-full h-full object-cover" />
-              </div>
-              
-              <div class="p-4">
-                <div class="model-type-tag">
-                  {{ model.type }}
-                </div>
-                <div v-if="model.nsfw" class="nsfw-tag">
-                  NSFW
-                </div>
-
-                <h3 class="text-lg font-semibold mb-2 truncate" :title="model.name">
-                  {{ model.name }}
-                </h3>
+              <div class="relative h-96">
+                <img :src="model.imageUrl" :alt="model.name" class="w-full h-full object-contain" />
                 
-                <div class="creator mb-2 flex items-center gap-2">
-                  <el-avatar :size="24" :src="model.creator.image" />
-                  <span class="text-sm text-gray-600">{{ model.creator.username }}</span>
-                </div>
+                <!-- 文本和按钮覆盖在图片上 -->
+                <div class="absolute bottom-0 left-0 right-0 p-4">
+                  <div class="inline-block bg-white bg-opacity-80 p-4 rounded-lg max-w-full">
+                    <div class="model-type-tag">
+                      {{ model.type }}
+                    </div>
+                    <div v-if="model.nsfw" class="nsfw-tag">
+                      NSFW
+                    </div>
 
-                <p class="description text-sm text-gray-500 mb-3 line-clamp-2">
-                  {{ model.description }}
-                </p>
+                    <h3 class="text-lg font-semibold mb-2 truncate max-w-xs" :title="model.name">
+                      {{ model.name }}
+                    </h3>
+                    
+                    <!-- 详细模式显示作者信息 -->
+                    <div v-if="displayMode === 'detailed'" class="creator mb-2 flex items-center gap-2">
+                      <el-avatar :size="24" :src="model.creator.image" />
+                      <span class="text-sm text-gray-600 truncate">{{ model.creator.username }}</span>
+                    </div>
 
-                <div class="stats grid grid-cols-3 gap-2 mb-3 text-xs text-gray-600">
-                  <div>⭐ {{ model.stats.rating.toFixed(1) }}</div>
-                  <div>💟 {{ model.stats.favoriteCount }}</div>
-                  <div>⬇️ {{ model.stats.downloadCount }}</div>
-                </div>
+                    <!-- 详细模式显示描述 -->
+                    <p v-if="displayMode === 'detailed'" class="description text-sm text-gray-500 mb-3 line-clamp-2">
+                      {{ model.description }}
+                    </p>
 
-                <div class="tags mb-3 flex flex-wrap gap-1">
-                  <el-tag
-                    v-for="tag in model.tags.slice(0, 3)"
-                    :key="tag"
-                    size="small"
-                    class="text-xs"
-                  >
-                    {{ tag }}
-                  </el-tag>
-                  <el-tag
-                    v-if="model.tags.length > 3"
-                    size="small"
-                    type="info"
-                    class="text-xs"
-                  >
-                    +{{ model.tags.length - 3 }}
-                  </el-tag>
-                </div>
+                    <!-- 详细模式显示统计数据 -->
+                    <div v-if="displayMode === 'detailed'" class="stats grid grid-cols-3 gap-2 mb-3 text-xs text-gray-600">
+                      <div>⭐ {{ model.stats.rating.toFixed(1) }}</div>
+                      <div>💟 {{ model.stats.favoriteCount }}</div>
+                      <div>⬇️ {{ model.stats.downloadCount }}</div>
+                    </div>
 
-                <div class="flex gap-2">
-                  <el-button
-                    type="primary"
-                    :icon="View"
-                    @click="viewModelDetails(model)"
-                    size="small"
-                  >
-                    详情
-                  </el-button>
-                  <el-button
-                    type="success"
-                    :icon="Download"
-                    @click="downloadModel(model)"
-                    size="small"
-                  >
-                    下载
-                  </el-button>
+                    <!-- 详细模式显示标签 -->
+                    <div v-if="displayMode === 'detailed'" class="tags mb-3 flex flex-wrap gap-1">
+                      <el-tag
+                        v-for="tag in model.tags.slice(0, 3)"
+                        :key="tag"
+                        size="small"
+                        class="text-xs"
+                      >
+                        {{ tag }}
+                      </el-tag>
+                      <el-tag
+                        v-if="model.tags.length > 3"
+                        size="small"
+                        type="info"
+                        class="text-xs"
+                      >
+                        +{{ model.tags.length - 3 }}
+                      </el-tag>
+                    </div>
+
+                    <!-- 按钮区域 -->
+                    <div class="flex gap-2">
+                      <el-button
+                        type="primary"
+                        :icon="View"
+                        @click="viewModelDetails(model)"
+                        size="small"
+                      >
+                        详情
+                      </el-button>
+                      <el-button
+                        type="success"
+                        :icon="Download"
+                        @click="downloadModel(model)"
+                        size="small"
+                      >
+                        下载
+                      </el-button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </el-card>
@@ -761,7 +780,7 @@ onMounted(() => {
 
 .model-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 20px;
 
   .model-card {
@@ -802,7 +821,7 @@ onMounted(() => {
     img {
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain;
     }
     
     .el-card__body {
@@ -816,7 +835,7 @@ onMounted(() => {
     }
     
     .relative {
-      height: 12rem; /* 192px */
+      height: 24rem; /* 384px */
     }
 
     .creator {
