@@ -3,6 +3,7 @@
 
 
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   HomeFilled,
@@ -20,7 +21,8 @@ const menuItems = [
   { key: 'home', icon: HomeFilled, label: '主页' },
   { key: 'search', icon: Search, label: '搜索' },
   { key: 'favorites', icon: Star, label: '喜欢' },
-  { key: 'history', icon: Clock, label: '历史' },
+  { key: 'downloads', icon: Download, label: '下载列表' },
+  { key: 'history', icon: Clock, label: '下载历史' },
   { key: 'settings', icon: Setting, label: '设置' }
 ]
 
@@ -32,11 +34,105 @@ const pageSize = ref(20)
 const total = ref(0)
 const searchQuery = ref('')
 const selectedType = ref('')
+// 添加分页缓存
+const pageCache = ref<Record<string, any[]>>({})
 
 // 显示模式相关
 const displayMode = ref('detailed') // 'detailed' 或 'compact'
 const toggleDisplayMode = () => {
   displayMode.value = displayMode.value === 'detailed' ? 'compact' : 'detailed'
+}
+
+// 批量下载相关
+const batchModelIds = ref('')
+const downloadQueue = ref<any[]>([])
+const downloadHistory = ref<any[]>([])
+const historyPage = ref(1)
+const historyPageSize = ref(10)
+const historyTotal = ref(0)
+
+// 批量下载模型
+const batchDownloadModels = () => {
+  if (!batchModelIds.value.trim()) {
+    ElMessage.warning('请输入模型ID')
+    return
+  }
+  
+  const ids = batchModelIds.value.split('\n').map(id => id.trim()).filter(id => id)
+  if (ids.length === 0) {
+    ElMessage.warning('请输入有效的模型ID')
+    return
+  }
+  
+  // 将模型ID添加到下载队列
+  ids.forEach(id => {
+    downloadQueue.value.push({
+      id: id,
+      name: `模型 ${id}`,
+      status: '等待中',
+      progress: 0
+    })
+  })
+  
+  ElMessage.success(`已添加 ${ids.length} 个模型到下载队列`)
+  batchModelIds.value = ''
+}
+
+// 获取下载状态类型（用于标签颜色）
+const getDownloadStatusType = (status: string) => {
+  switch (status) {
+    case '下载中':
+      return 'primary'
+    case '已完成':
+      return 'success'
+    case '已暂停':
+      return 'warning'
+    case '已取消':
+    case '失败':
+      return 'danger'
+    default:
+      return 'info'
+  }
+}
+
+// 开始下载
+const startDownload = (item: any) => {
+  item.status = '下载中'
+  item.progress = Math.min(item.progress + 10, 100)
+  
+  // 模拟下载过程
+  if (item.progress < 100) {
+    setTimeout(() => {
+      startDownload(item)
+    }, 500)
+  } else {
+    item.status = '已完成'
+    // 将完成的下载添加到历史记录
+    downloadHistory.value.unshift({
+      ...item,
+      completedAt: new Date().toLocaleString()
+    })
+  }
+}
+
+// 暂停下载
+const pauseDownload = (item: any) => {
+  item.status = '已暂停'
+}
+
+// 取消下载
+const cancelDownload = (item: any) => {
+  item.status = '已取消'
+}
+
+// 查看下载结果
+const viewDownloadResult = (item: any) => {
+  ElMessage.info(`查看下载结果: ${item.name}`)
+}
+
+// 处理历史页面变化
+const handleHistoryPageChange = (page: number) => {
+  historyPage.value = page
 }
 
 // 模型类型
@@ -135,6 +231,16 @@ const testProxyConnection = async () => {
 
 // 获取模型列表
 const fetchModels = async () => {
+  // 生成缓存键
+  const cacheKey = `${currentPage.value}-${pageSize.value}-${selectedSort.value}-${searchQuery.value}-${selectedType.value}`;
+  
+  // 检查缓存中是否已有数据
+  if (pageCache.value[cacheKey]) {
+    models.value = pageCache.value[cacheKey];
+    console.log(`从缓存中获取第 ${currentPage.value} 页数据`);
+    return;
+  }
+  
   loading.value = true
   try {
     // 构建请求参数
@@ -188,14 +294,28 @@ const fetchModels = async () => {
       throw new Error('返回的数据格式不正确')
     }
     
-    models.value = data.items.map((item: any) => {
+    const processedModels = data.items.map((item: any) => {
       // 确保必要的字段存在
       // 获取模型版本和图片信息
       const modelVersion = item.modelVersions?.[0] || {};
       // 尝试从不同字段获取图片URL
       const image = modelVersion.images?.[0] || {};
-      // 如果从images字段没有获取到URL，尝试从其他可能的字段获取
-      const imageUrl = image.url || image.downloadUrl || item.coverImageUrl || '/placeholder-300x200.png';
+      // 检查媒体类型，只使用图片类型
+      let imageUrl = '/placeholder-300x200.png';
+      // 检查图片类型，支持常见的图片格式
+      const isImageUrl = (url: string) => {
+        if (!url) return false;
+        const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
+        return imageExtensions.some(ext => url.toLowerCase().endsWith(ext));
+      };
+      
+      if (image.url && (image.type === 'image' || isImageUrl(image.url))) {
+        imageUrl = image.url;
+      } else if (image.downloadUrl && (image.type === 'image' || isImageUrl(image.downloadUrl))) {
+        imageUrl = image.downloadUrl;
+      } else if (item.coverImageUrl && isImageUrl(item.coverImageUrl)) {
+        imageUrl = item.coverImageUrl;
+      }
       
       return {
         id: item.id || Date.now() + Math.random(), // 如果没有ID则生成一个临时ID
@@ -219,6 +339,10 @@ const fetchModels = async () => {
         downloadUrl: modelVersion.downloadUrl || ''
       }
     })
+    
+    // 保存到缓存
+    pageCache.value[cacheKey] = processedModels;
+    models.value = processedModels;
     
     total.value = data.metadata?.totalItems || data.items.length || 0
     console.log(`成功获取 ${models.value.length} 个模型`)
@@ -270,38 +394,8 @@ const handlePageChange = (page: number) => {
 
 // 查看模型详情
 const viewModelDetails = (model: any) => {
-  ElMessageBox.alert(
-    `
-    <div class="model-details">
-      <img src="${model.imageUrl}" class="w-full h-48 object-contain mb-4">
-      <h3 class="text-lg font-bold mb-2">${model.name}</h3>
-      <p class="text-sm text-gray-600 mb-4">${model.description}</p>
-      <div class="stats grid grid-cols-3 gap-4 mb-4">
-        <div>下载: ${model.stats.downloadCount}</div>
-        <div>喜欢: ${model.stats.favoriteCount}</div>
-        <div>评分: ${model.stats.rating.toFixed(1)}</div>
-      </div>
-      <div class="creator flex items-center gap-2 mb-4">
-        <img src="${model.creator.image}" class="w-8 h-8 rounded-full">
-        <span>${model.creator.username}</span>
-      </div>
-      <div class="tags flex flex-wrap gap-2">
-        ${model.tags.map((tag: string) => `<span class="px-2 py-1 bg-gray-100 rounded">${tag}</span>`).join('')}
-      </div>
-    </div>
-    `,
-    '模型详情',
-    {
-      dangerouslyUseHTMLString: true,
-      confirmButtonText: '关闭',
-      // 启用点击遮罩层关闭
-      closeOnClickModal: true,
-      // 启用按下 ESC 键关闭
-      closeOnPressEscape: true,
-      // 设置自定义类名，便于添加样式
-      customClass: 'model-details-dialog'
-    }
-  )
+  // 跳转到模型详情页面
+  router.push(`/model/${model.id}`)
 }
 
 // 下载模型
@@ -332,6 +426,9 @@ const downloadModel = async (model: any) => {
 const handleMenuClick = (key: string) => {
   activeMenu.value = key
 }
+
+// 创建路由实例
+const router = useRouter()
 
 // 页面加载时获取数据
 onMounted(() => {
@@ -513,6 +610,135 @@ onMounted(() => {
           </div>
         </template>
 
+        <!-- 下载列表页面 -->
+        <template v-if="activeMenu === 'downloads'">
+          <div class="downloads-page">
+            <el-card class="mb-4">
+              <template #header>
+                <div class="card-header flex justify-between items-center">
+                  <h3>批量下载</h3>
+                </div>
+              </template>
+              
+              <el-form label-width="120px">
+                <el-form-item label="模型ID列表">
+                  <el-input
+                    v-model="batchModelIds"
+                    type="textarea"
+                    :rows="4"
+                    placeholder="请输入模型ID，每行一个ID"
+                  />
+                </el-form-item>
+                
+                <el-form-item>
+                  <el-button
+                    type="primary"
+                    @click="batchDownloadModels"
+                  >
+                    批量下载
+                  </el-button>
+                </el-form-item>
+              </el-form>
+            </el-card>
+            
+            <el-card>
+              <template #header>
+                <div class="card-header">
+                  <h3>下载队列</h3>
+                </div>
+              </template>
+              
+              <el-table :data="downloadQueue" style="width: 100%">
+                <el-table-column prop="id" label="模型ID" width="100" />
+                <el-table-column prop="name" label="模型名称" />
+                <el-table-column prop="status" label="状态" width="120">
+                  <template #default="scope">
+                    <el-tag :type="getDownloadStatusType(scope.row.status)">
+                      {{ scope.row.status }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="progress" label="进度" width="120">
+                  <template #default="scope">
+                    <el-progress :percentage="scope.row.progress" :show-text="false" />
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="120">
+                  <template #default="scope">
+                    <el-button
+                      v-if="scope.row.status === '等待中' || scope.row.status === '已暂停'"
+                      size="small"
+                      @click="startDownload(scope.row)"
+                    >
+                      开始
+                    </el-button>
+                    <el-button
+                      v-else-if="scope.row.status === '下载中'"
+                      size="small"
+                      @click="pauseDownload(scope.row)"
+                    >
+                      暂停
+                    </el-button>
+                    <el-button
+                      size="small"
+                      type="danger"
+                      @click="cancelDownload(scope.row)"
+                    >
+                      取消
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-card>
+          </div>
+        </template>
+        
+        <!-- 下载历史页面 -->
+        <template v-if="activeMenu === 'history'">
+          <div class="history-page">
+            <el-card>
+              <template #header>
+                <div class="card-header">
+                  <h3>下载历史</h3>
+                </div>
+              </template>
+              
+              <el-table :data="downloadHistory" style="width: 100%">
+                <el-table-column prop="id" label="模型ID" width="100" />
+                <el-table-column prop="name" label="模型名称" />
+                <el-table-column prop="status" label="状态" width="120">
+                  <template #default="scope">
+                    <el-tag :type="getDownloadStatusType(scope.row.status)">
+                      {{ scope.row.status }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="completedAt" label="完成时间" width="180" />
+                <el-table-column label="操作" width="120">
+                  <template #default="scope">
+                    <el-button
+                      size="small"
+                      @click="viewDownloadResult(scope.row)"
+                    >
+                      查看结果
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              
+              <div class="pagination-section mt-4 flex justify-center">
+                <el-pagination
+                  v-model:current-page="historyPage"
+                  v-model:page-size="historyPageSize"
+                  :total="historyTotal"
+                  layout="total, prev, pager, next"
+                  @current-change="handleHistoryPageChange"
+                />
+              </div>
+            </el-card>
+          </div>
+        </template>
+
         <!-- 设置页面 -->
         <template v-if="activeMenu === 'settings'">
           <div class="settings-page">
@@ -664,7 +890,13 @@ onMounted(() => {
 .civitai-layout {
   display: flex;
   height: 100vh;
+  width: 100vw;
   background-color: #f5f7fa;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 
 .sidebar {
