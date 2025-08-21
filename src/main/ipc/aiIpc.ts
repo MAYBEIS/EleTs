@@ -122,15 +122,20 @@ export function initAiIpc() {
         return { ok: response.statusCode >= 200 && response.statusCode < 300, data };
       }
       // 如果启用了自定义代理，则配置代理
-      else if (proxy && proxy.server && proxy.enabled) {
-        console.log('使用自定义代理:', proxy.server);
+      // 处理两种情况：
+      // 1. proxy是一个包含server和enabled属性的对象
+      // 2. proxy是一个字符串（代理服务器地址）
+      else if ((proxy && proxy.server && proxy.enabled) || (typeof proxy === 'string' && proxy.length > 0)) {
+        console.log('使用自定义代理:', typeof proxy === 'string' ? proxy : proxy.server);
         try {
           // 使用代理发送请求
+          // 获取代理服务器地址
+          const proxyServer = typeof proxy === 'string' ? proxy : proxy.server;
           let agent;
-          if (proxy.server.startsWith('https://')) {
-            agent = new HttpsProxyAgent(proxy.server);
+          if (proxyServer.startsWith('https://')) {
+            agent = new HttpsProxyAgent(proxyServer);
           } else {
-            agent = new HttpProxyAgent(proxy.server);
+            agent = new HttpProxyAgent(proxyServer);
           }
           
           // 创建一个AbortController用于超时控制
@@ -138,12 +143,12 @@ export function initAiIpc() {
           const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
           
           // 使用node-fetch通过代理发送请求
-          const { default: nodeFetch } = await import('node-fetch');
+          const nodeFetch = (await import('node-fetch')).default;
           const response = await nodeFetch(url, {
             method: 'GET',
             headers: headers,
             agent: agent,
-            signal: controller.signal as any
+            signal: controller.signal
           });
           
           clearTimeout(timeoutId);
@@ -167,11 +172,11 @@ export function initAiIpc() {
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
         
         // 使用node-fetch直接发送请求
-        const { default: nodeFetch } = await import('node-fetch');
+        const nodeFetch = (await import('node-fetch')).default;
         const response = await nodeFetch(url, {
           method: 'GET',
           headers: headers,
-          signal: controller.signal as any
+          signal: controller.signal
         });
         
         clearTimeout(timeoutId);
@@ -256,12 +261,12 @@ export function initAiIpc() {
           const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
           
           // 使用node-fetch通过代理发送请求
-          const { default: nodeFetch } = await import('node-fetch');
+          const nodeFetch = (await import('node-fetch')).default;
           const response = await nodeFetch(url, {
             method: 'GET',
             headers: defaultHeaders,
             agent: agent,
-            signal: controller.signal as any
+            signal: controller.signal
           });
           
           clearTimeout(timeoutId);
@@ -287,11 +292,11 @@ export function initAiIpc() {
           const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
           
           // 使用node-fetch直接发送请求
-          const { default: nodeFetch } = await import('node-fetch');
+          const nodeFetch = (await import('node-fetch')).default;
           const response = await nodeFetch(url, {
             method: 'GET',
             headers: defaultHeaders,
-            signal: controller.signal as any
+            signal: controller.signal
           });
           
           clearTimeout(timeoutId);
@@ -355,12 +360,12 @@ export function initAiIpc() {
           const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超时
           
           // 使用node-fetch通过代理发送请求
-          const { default: nodeFetch } = await import('node-fetch');
+          const nodeFetch = (await import('node-fetch')).default;
           const response = await nodeFetch('https://www.google.com', {
             method: 'GET',
             headers: defaultHeaders,
             agent: agent,
-            signal: controller.signal as any
+            signal: controller.signal
           });
           
           clearTimeout(timeoutId);

@@ -184,26 +184,32 @@ const fetchModels = async () => {
     
     models.value = data.items.map((item: any) => {
       // 确保必要的字段存在
-      const modelVersion = item.modelVersions?.[0] || {}
-      const image = modelVersion.images?.[0] || {}
+      // 获取模型版本和图片信息
+      const modelVersion = item.modelVersions?.[0] || {};
+      // 尝试从不同字段获取图片URL
+      const image = modelVersion.images?.[0] || {};
+      // 如果从images字段没有获取到URL，尝试从其他可能的字段获取
+      const imageUrl = image.url || image.downloadUrl || item.coverImageUrl || '/placeholder-300x200.png';
       
       return {
         id: item.id || Date.now() + Math.random(), // 如果没有ID则生成一个临时ID
         name: item.name || '未命名模型',
-        description: item.description || '暂无描述',
+        // 改进描述文字处理逻辑
+        description: item.description || item.desc || item.content || '暂无描述',
         type: item.type || 'Unknown',
         nsfw: item.nsfw || false,
         tags: Array.isArray(item.tags) ? item.tags : [],
+        // 正确映射统计数据字段
         stats: {
-          downloadCount: item.stats?.downloadCount || 0,
-          favoriteCount: item.stats?.favoriteCount || 0,
-          rating: item.stats?.rating || 0
+          downloadCount: item.stats?.downloadCount || item.stats?.downloadedCount || item.downloadCount || 0,
+          favoriteCount: item.stats?.favoriteCount || item.stats?.favouriteCount || item.stats?.heartCount || item.favouriteCount || 0,
+          rating: item.stats?.rating || item.stats?.avgRating || item.avgRating || 0
         },
         creator: {
           username: item.creator?.username || '未知作者',
           image: item.creator?.image || '/placeholder-50.png'
         },
-        imageUrl: image.url || '/placeholder-300x200.png',
+        imageUrl: imageUrl,
         downloadUrl: modelVersion.downloadUrl || ''
       }
     })
@@ -281,7 +287,13 @@ const viewModelDetails = (model: any) => {
     '模型详情',
     {
       dangerouslyUseHTMLString: true,
-      confirmButtonText: '关闭'
+      confirmButtonText: '关闭',
+      // 启用点击遮罩层关闭
+      closeOnClickModal: true,
+      // 启用按下 ESC 键关闭
+      closeOnPressEscape: true,
+      // 设置自定义类名，便于添加样式
+      customClass: 'model-details-dialog'
     }
   )
 }
