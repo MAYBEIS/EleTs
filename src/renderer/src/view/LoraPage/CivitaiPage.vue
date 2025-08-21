@@ -267,7 +267,7 @@ const viewModelDetails = (model: any) => {
   ElMessageBox.alert(
     `
     <div class="model-details">
-      <img src="${model.imageUrl}" class="w-full h-48 object-cover mb-4">
+      <img src="${model.imageUrl}" class="w-full h-48 object-contain mb-4">
       <h3 class="text-lg font-bold mb-2">${model.name}</h3>
       <p class="text-sm text-gray-600 mb-4">${model.description}</p>
       <div class="stats grid grid-cols-3 gap-4 mb-4">
@@ -408,17 +408,18 @@ onMounted(() => {
               class="model-card"
               :body-style="{ padding: '0' }"
             >
-              <div class="relative">
-                <img :src="model.imageUrl" :alt="model.name" class="w-full h-48 object-cover" />
+              <div class="relative h-64">
+                <img :src="model.imageUrl" :alt="model.name" class="w-full h-full object-cover" />
+              </div>
+              
+              <div class="p-4">
                 <div class="model-type-tag">
                   {{ model.type }}
                 </div>
                 <div v-if="model.nsfw" class="nsfw-tag">
                   NSFW
                 </div>
-              </div>
 
-              <div class="p-4">
                 <h3 class="text-lg font-semibold mb-2 truncate" :title="model.name">
                   {{ model.name }}
                 </h3>
@@ -462,6 +463,7 @@ onMounted(() => {
                     type="primary"
                     :icon="View"
                     @click="viewModelDetails(model)"
+                    size="small"
                   >
                     详情
                   </el-button>
@@ -469,6 +471,7 @@ onMounted(() => {
                     type="success"
                     :icon="Download"
                     @click="downloadModel(model)"
+                    size="small"
                   >
                     下载
                   </el-button>
@@ -762,11 +765,12 @@ onMounted(() => {
   gap: 20px;
 
   .model-card {
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: all 0.3s ease;
+    overflow: hidden;
 
     &:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
     }
 
     .relative {
@@ -797,8 +801,22 @@ onMounted(() => {
 
     img {
       width: 100%;
-      height: 200px;
+      height: 100%;
       object-fit: cover;
+    }
+    
+    .el-card__body {
+      padding: 0;
+    }
+    
+    .p-4 {
+      padding: 1rem;
+      background: rgba(255, 255, 255, 0.7);
+      border-radius: 0 0 8px 8px;
+    }
+    
+    .relative {
+      height: 12rem; /* 192px */
     }
 
     .creator {
