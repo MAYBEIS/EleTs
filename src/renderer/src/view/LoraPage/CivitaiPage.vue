@@ -1,10 +1,22 @@
 <script setup lang="ts">
+// 声明window.api类型
+declare global {
+  interface Window {
+    api: {
+      fetchCivitaiModels: (url: string, options: any) => Promise<any>;
+      downloadCivitaiModel: (url: string, filename: string) => Promise<any>;
+      updateProxySettings: (settings: any) => Promise<any>;
+      testProxyConnection: (proxyServer: string) => Promise<any>;
+    };
+  }
+}
+
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { 
-  HomeFilled, 
-  Search, 
-  Star, 
+import {
+  HomeFilled,
+  Search,
+  Star,
   Clock,
   Setting,
   Download,
@@ -62,34 +74,44 @@ const useSystemProxy = ref(localStorage.getItem('use_system_proxy') === 'true')
 
 // 保存 API 设置
 const saveApiSettings = (key: string, endpoint: string) => {
-  apiKey.value = key
-  apiEndpoint.value = endpoint
-  localStorage.setItem('civitai_api_key', key)
-  localStorage.setItem('civitai_api_endpoint', endpoint)
-  ElMessage.success('API设置已保存')
-  setTimeout(() => {
-    fetchModels() // 重新加载数据
-  }, 500) // 延迟500ms执行，确保设置已保存
+  try {
+    apiKey.value = key
+    apiEndpoint.value = endpoint
+    localStorage.setItem('civitai_api_key', key)
+    localStorage.setItem('civitai_api_endpoint', endpoint)
+    ElMessage.success('API设置已保存')
+    setTimeout(() => {
+      fetchModels() // 重新加载数据
+    }, 500) // 延迟500ms执行，确保设置已保存
+  } catch (error) {
+    console.error('保存API设置失败:', error)
+    ElMessage.error('保存API设置失败')
+  }
 }
 
 // 保存代理设置
 const saveProxySettings = () => {
-  localStorage.setItem('proxy_server', proxyServer.value)
-  localStorage.setItem('proxy_enabled', proxyEnabled.value.toString())
-  localStorage.setItem('use_system_proxy', useSystemProxy.value.toString())
-  ElMessage.success('代理设置已保存')
-  
-  // 通知主进程更新代理设置
-  window.api.updateProxySettings({
-    server: proxyServer.value,
-    enabled: proxyEnabled.value,
-    useSystemProxy: useSystemProxy.value
-  })
-  
-  // 重新加载数据
-  setTimeout(() => {
-    fetchModels()
-  }, 500) // 延迟500ms执行，确保设置已保存
+  try {
+    localStorage.setItem('proxy_server', proxyServer.value)
+    localStorage.setItem('proxy_enabled', proxyEnabled.value.toString())
+    localStorage.setItem('use_system_proxy', useSystemProxy.value.toString())
+    ElMessage.success('代理设置已保存')
+    
+    // 通知主进程更新代理设置
+    window.api.updateProxySettings({
+      server: proxyServer.value,
+      enabled: proxyEnabled.value,
+      useSystemProxy: useSystemProxy.value
+    })
+    
+    // 重新加载数据
+    setTimeout(() => {
+      fetchModels()
+    }, 500) // 延迟500ms执行，确保设置已保存
+  } catch (error) {
+    console.error('保存代理设置失败:', error)
+    ElMessage.error('保存代理设置失败')
+  }
 }
 
 // 测试代理连接
@@ -108,7 +130,9 @@ const testProxyConnection = async () => {
       ElMessage.error('代理连接测试失败: ' + (result.error || '连接失败'))
     }
   } catch (error) {
-    ElMessage.error('代理连接测试失败: ' + (error instanceof Error ? error.message : '未知错误'))
+    console.error('代理连接测试失败:', error)
+    const errorMessage = error instanceof Error ? error.message : '未知错误'
+    ElMessage.error('代理连接测试失败: ' + errorMessage)
   }
 }
 
@@ -131,47 +155,78 @@ const fetchModels = async () => {
       headers['Authorization'] = `Bearer ${apiKey.value}`
     }
 
+    // 构建完整的API URL
+    const apiUrl = `${apiEndpoint.value}/models?${params}`
+    console.log('请求API URL:', apiUrl)
+
     // 重新使用 Electron 的 IPC 调用来发送请求
     // 由于CSP限制，直接使用fetch在Electron中可能无法正常工作
+    console.log('发送 Civitai 模型数据请求');
+    console.log('API URL:', apiUrl);
+    console.log('请求头:', headers);
+    console.log('代理设置:', {
+      proxy: proxyEnabled.value ? proxyServer.value : undefined,
+      useSystemProxy: useSystemProxy.value
+    });
+    
     const response = await window.api.fetchCivitaiModels(
-      `${apiEndpoint.value}/models?${params}`,
-      { 
+      apiUrl,
+      {
         headers,
         proxy: proxyEnabled.value ? proxyServer.value : undefined,
         useSystemProxy: useSystemProxy.value
       }
-    )
+    );
+    
+    console.log('收到 Civitai 模型数据响应:', response);
+    
+    console.log('API响应:', response)
     
     if (!response.ok) {
-      throw new Error('获取模型数据失败')
+      throw new Error(`获取模型数据失败: ${response.status} ${response.statusText}`)
     }
 
     const data = response.data
-    models.value = data.items.map((item: any) => ({
-      id: item.id,
-      name: item.name,
-      description: item.description || '暂无描述',
-      type: item.type,
-      nsfw: item.nsfw,
-      tags: item.tags || [],
-      stats: {
-        downloadCount: item.stats?.downloadCount || 0,
-        favoriteCount: item.stats?.favoriteCount || 0,
-        rating: item.stats?.rating || 0
-      },
-      creator: {
-        username: item.creator?.username || '未知作者',
-        image: item.creator?.image || '/placeholder-50.png'
-      },
-      imageUrl: item.modelVersions?.[0]?.images?.[0]?.url || '/placeholder-300x200.png',
-      downloadUrl: item.modelVersions?.[0]?.downloadUrl
-    }))
     
-    total.value = data.metadata?.totalItems || 0
+    // 检查数据结构
+    if (!data || !Array.isArray(data.items)) {
+      console.error('无效的数据结构:', data)
+      throw new Error('返回的数据格式不正确')
+    }
+    
+    models.value = data.items.map((item: any) => {
+      // 确保必要的字段存在
+      const modelVersion = item.modelVersions?.[0] || {}
+      const image = modelVersion.images?.[0] || {}
+      
+      return {
+        id: item.id || Date.now() + Math.random(), // 如果没有ID则生成一个临时ID
+        name: item.name || '未命名模型',
+        description: item.description || '暂无描述',
+        type: item.type || 'Unknown',
+        nsfw: item.nsfw || false,
+        tags: Array.isArray(item.tags) ? item.tags : [],
+        stats: {
+          downloadCount: item.stats?.downloadCount || 0,
+          favoriteCount: item.stats?.favoriteCount || 0,
+          rating: item.stats?.rating || 0
+        },
+        creator: {
+          username: item.creator?.username || '未知作者',
+          image: item.creator?.image || '/placeholder-50.png'
+        },
+        imageUrl: image.url || '/placeholder-300x200.png',
+        downloadUrl: modelVersion.downloadUrl || ''
+      }
+    })
+    
+    total.value = data.metadata?.totalItems || data.items.length || 0
+    console.log(`成功获取 ${models.value.length} 个模型`)
 
   } catch (error) {
     console.error('获取模型失败:', error)
-    ElMessage.error('获取模型数据失败，请稍后重试')
+    const errorMessage = error instanceof Error ? error.message : '未知错误'
+    ElMessage.error(`获取模型数据失败: ${errorMessage}，请检查网络连接和API设置`)
   } finally {
     loading.value = false
   }
@@ -252,6 +307,7 @@ const downloadModel = async (model: any) => {
 
   // 重新使用 Electron 的 IPC 调用来处理下载
   try {
+    // 添加类型断言以避免TypeScript错误
     const result = await window.api.downloadCivitaiModel(
       model.downloadUrl,
       model.name
@@ -260,10 +316,12 @@ const downloadModel = async (model: any) => {
     if (result.success) {
       ElMessage.success('模型下载成功')
     } else {
-      ElMessage.error('下载失败: ' + result.error)
+      ElMessage.error('下载失败: ' + (result.error || '未知错误'))
     }
   } catch (error) {
-    ElMessage.error('下载失败，请稍后重试')
+    console.error('下载失败:', error)
+    const errorMessage = error instanceof Error ? error.message : '未知错误'
+    ElMessage.error('下载失败: ' + errorMessage + '，请稍后重试')
   }
 }
 
