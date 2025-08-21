@@ -137,7 +137,7 @@ const fetchModels = async () => {
       page: currentPage.value.toString(),
       sort: selectedSort.value,
       query: searchQuery.value,
-      ...(selectedType.value && { type: selectedType.value })
+      ...(selectedType.value && { types: selectedType.value })
     })
 
     // 构建请求头
