@@ -1,15 +1,6 @@
 <script setup lang="ts">
-// 声明window.api类型
-declare global {
-  interface Window {
-    api: {
-      fetchCivitaiModels: (url: string, options: any) => Promise<any>;
-      downloadCivitaiModel: (url: string, filename: string) => Promise<any>;
-      updateProxySettings: (settings: any) => Promise<any>;
-      testProxyConnection: (proxyServer: string) => Promise<any>;
-    };
-  }
-}
+// 导入ipcRenderer
+
 
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -98,7 +89,7 @@ const saveProxySettings = () => {
     ElMessage.success('代理设置已保存')
     
     // 通知主进程更新代理设置
-    window.api.updateProxySettings({
+    window.api.invoke('update-proxy-settings', {
       server: proxyServer.value,
       enabled: proxyEnabled.value,
       useSystemProxy: useSystemProxy.value
@@ -123,7 +114,7 @@ const testProxyConnection = async () => {
   
   try {
     ElMessage.info('正在测试代理连接...')
-    const result = await window.api.testProxyConnection(proxyServer.value)
+    const result = await window.api.invoke('test-proxy-connection', proxyServer.value)
     if (result.success) {
       ElMessage.success('代理连接测试成功')
     } else {
@@ -169,14 +160,11 @@ const fetchModels = async () => {
       useSystemProxy: useSystemProxy.value
     });
     
-    const response = await window.api.fetchCivitaiModels(
-      apiUrl,
-      {
-        headers,
-        proxy: proxyEnabled.value ? proxyServer.value : undefined,
-        useSystemProxy: useSystemProxy.value
-      }
-    );
+    const response = await window.api.invoke('fetch-civitai-models', apiUrl, {
+      headers,
+      proxy: proxyEnabled.value ? proxyServer.value : undefined,
+      useSystemProxy: useSystemProxy.value
+    });
     
     console.log('收到 Civitai 模型数据响应:', response);
     
@@ -308,10 +296,7 @@ const downloadModel = async (model: any) => {
   // 重新使用 Electron 的 IPC 调用来处理下载
   try {
     // 添加类型断言以避免TypeScript错误
-    const result = await window.api.downloadCivitaiModel(
-      model.downloadUrl,
-      model.name
-    )
+    const result = await window.api.invoke('download-civitai-model', model.downloadUrl, model.name)
     
     if (result.success) {
       ElMessage.success('模型下载成功')
