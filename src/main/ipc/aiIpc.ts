@@ -20,6 +20,30 @@ let globalProxySettings: {
   useSystemProxy?: boolean;
 } = {};
 
+// 下载队列管理
+let downloadQueue: Array<{
+  id: string;
+  name: string;
+  status: '等待中' | '下载中' | '已暂停' | '已完成' | '已取消' | '失败';
+  progress: number;
+  url: string;
+  addedAt: string;
+  completedAt?: string;
+  error?: string;
+}> = [];
+
+// 下载历史记录
+let downloadHistory: Array<{
+  id: string;
+  name: string;
+  status: '已完成' | '已取消' | '失败';
+  progress: number;
+  url: string;
+  addedAt: string;
+  completedAt: string;
+  error?: string;
+}> = [];
+
 // 创建默认的浏览器请求头
 const defaultHeaders = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -422,5 +446,272 @@ export function initAiIpc() {
     }
   })
   
+  /**
+   * 获取下载队列
+   * 渲染进程可以通过此 IPC 调用来获取当前下载队列
+   */
+  ipcMain.handle('get-download-queue', async () => {
+    try {
+      console.log('获取下载队列，当前队列长度:', downloadQueue.length);
+      return { success: true, data: downloadQueue };
+    } catch (error) {
+      console.error('获取下载队列失败:', error);
+      return { success: false, error: error instanceof Error ? error.message : '未知错误' };
+    }
+  });
+
+  /**
+   * 添加到下载队列
+   * 渲染进程可以通过此 IPC 调用来添加模型到下载队列
+   */
+  ipcMain.handle('add-to-download-queue', async (_event, modelId: string, modelName: string, downloadUrl: string) => {
+    try {
+      console.log('添加模型到下载队列:', { modelId, modelName, downloadUrl });
+      
+      // 检查是否已在队列中
+      const existingIndex = downloadQueue.findIndex(item => item.id === modelId);
+      if (existingIndex !== -1) {
+        console.log('模型已在下载队列中');
+        return { success: false, error: '模型已在下载队列中' };
+      }
+
+      // 添加到队列
+      const downloadItem = {
+        id: modelId,
+        name: modelName,
+        url: downloadUrl,
+        status: '等待中' as const,
+        progress: 0,
+        addedAt: new Date().toISOString()
+      };
+
+      downloadQueue.push(downloadItem);
+      console.log('成功添加到下载队列，当前队列长度:', downloadQueue.length);
+      
+      return { success: true, data: downloadItem };
+    } catch (error) {
+      console.error('添加到下载队列失败:', error);
+      return { success: false, error: error instanceof Error ? error.message : '未知错误' };
+    }
+  });
+
+  /**
+   * 批量添加到下载队列
+   * 渲染进程可以通过此 IPC 调用来批量添加模型到下载队列
+   */
+  ipcMain.handle('batch-add-to-download-queue', async (_event, modelIds: string[]) => {
+    try {
+      console.log('批量添加模型到下载队列:', modelIds);
+      
+      const addedItems = [];
+      const failedItems = [];
+
+      for (const modelId of modelIds) {
+        // 检查是否已在队列中
+        const existingIndex = downloadQueue.findIndex(item => item.id === modelId);
+        if (existingIndex !== -1) {
+          failedItems.push({ id: modelId, reason: '已在下载队列中' });
+          continue;
+        }
+
+        // 添加到队列
+        const downloadItem = {
+          id: modelId,
+          name: `模型 ${modelId}`,
+          url: '', // 批量添加时暂时没有URL，需要后续获取
+          status: '等待中' as const,
+          progress: 0,
+          addedAt: new Date().toISOString()
+        };
+
+        downloadQueue.push(downloadItem);
+        addedItems.push(downloadItem);
+      }
+
+      console.log(`批量添加完成: 成功 ${addedItems.length} 个，失败 ${failedItems.length} 个`);
+      
+      return {
+        success: true,
+        data: {
+          added: addedItems,
+          failed: failedItems,
+          totalQueue: downloadQueue.length
+        }
+      };
+    } catch (error) {
+      console.error('批量添加到下载队列失败:', error);
+      return { success: false, error: error instanceof Error ? error.message : '未知错误' };
+    }
+  });
+
+  /**
+   * 开始下载
+   * 渲染进程可以通过此 IPC 调用来开始下载指定模型
+   */
+  ipcMain.handle('start-download', async (_event, modelId: string) => {
+    try {
+      console.log('开始下载模型:', modelId);
+      
+      const downloadItem = downloadQueue.find(item => item.id === modelId);
+      if (!downloadItem) {
+        return { success: false, error: '未找到指定的下载项' };
+      }
+
+      if (downloadItem.status !== '等待中' && downloadItem.status !== '已暂停') {
+        return { success: false, error: '只能开始等待中或已暂停的下载' };
+      }
+
+      // 更新状态
+      downloadItem.status = '下载中';
+      
+      // 模拟下载过程（实际应用中应该实现真实的下载逻辑）
+      simulateDownload(downloadItem);
+      
+      return { success: true, data: downloadItem };
+    } catch (error) {
+      console.error('开始下载失败:', error);
+      return { success: false, error: error instanceof Error ? error.message : '未知错误' };
+    }
+  });
+
+  /**
+   * 暂停下载
+   * 渲染进程可以通过此 IPC 调用来暂停指定模型的下载
+   */
+  ipcMain.handle('pause-download', async (_event, modelId: string) => {
+    try {
+      console.log('暂停下载模型:', modelId);
+      
+      const downloadItem = downloadQueue.find(item => item.id === modelId);
+      if (!downloadItem) {
+        return { success: false, error: '未找到指定的下载项' };
+      }
+
+      if (downloadItem.status !== '下载中') {
+        return { success: false, error: '只能暂停正在下载的项目' };
+      }
+
+      // 更新状态
+      downloadItem.status = '已暂停';
+      
+      return { success: true, data: downloadItem };
+    } catch (error) {
+      console.error('暂停下载失败:', error);
+      return { success: false, error: error instanceof Error ? error.message : '未知错误' };
+    }
+  });
+
+  /**
+   * 取消下载
+   * 渲染进程可以通过此 IPC 调用来取消指定模型的下载
+   */
+  ipcMain.handle('cancel-download', async (_event, modelId: string) => {
+    try {
+      console.log('取消下载模型:', modelId);
+      
+      const downloadIndex = downloadQueue.findIndex(item => item.id === modelId);
+      if (downloadIndex === -1) {
+        return { success: false, error: '未找到指定的下载项' };
+      }
+
+      const downloadItem = downloadQueue[downloadIndex];
+      
+      // 从队列中移除
+      downloadQueue.splice(downloadIndex, 1);
+      
+      // 添加到历史记录
+      downloadHistory.unshift({
+        ...downloadItem,
+        status: '已取消',
+        completedAt: new Date().toISOString()
+      });
+      
+      return { success: true, data: downloadItem };
+    } catch (error) {
+      console.error('取消下载失败:', error);
+      return { success: false, error: error instanceof Error ? error.message : '未知错误' };
+    }
+  });
+
+  /**
+   * 获取下载历史
+   * 渲染进程可以通过此 IPC 调用来获取下载历史记录
+   */
+  ipcMain.handle('get-download-history', async (_event, page: number = 1, pageSize: number = 10) => {
+    try {
+      console.log('获取下载历史:', { page, pageSize });
+      
+      const startIndex = (page - 1) * pageSize;
+      const endIndex = startIndex + pageSize;
+      const paginatedHistory = downloadHistory.slice(startIndex, endIndex);
+      
+      return {
+        success: true,
+        data: {
+          items: paginatedHistory,
+          total: downloadHistory.length,
+          page,
+          pageSize,
+          totalPages: Math.ceil(downloadHistory.length / pageSize)
+        }
+      };
+    } catch (error) {
+      console.error('获取下载历史失败:', error);
+      return { success: false, error: error instanceof Error ? error.message : '未知错误' };
+    }
+  });
+
+  /**
+   * 清空下载历史
+   * 渲染进程可以通过此 IPC 调用来清空下载历史记录
+   */
+  ipcMain.handle('clear-download-history', async () => {
+    try {
+      console.log('清空下载历史');
+      
+      const clearedCount = downloadHistory.length;
+      downloadHistory = [];
+      
+      return { success: true, data: { clearedCount } };
+    } catch (error) {
+      console.error('清空下载历史失败:', error);
+      return { success: false, error: error instanceof Error ? error.message : '未知错误' };
+    }
+  });
+
   console.log('AI IPC 处理程序初始化完成')
+}
+
+/**
+ * 模拟下载过程
+ * 在实际应用中，这里应该实现真实的文件下载逻辑
+ */
+function simulateDownload(downloadItem: any) {
+  console.log('开始模拟下载:', downloadItem.name);
+  
+  const downloadInterval = setInterval(() => {
+    if (downloadItem.status !== '下载中') {
+      clearInterval(downloadInterval);
+      return;
+    }
+
+    // 更新进度
+    downloadItem.progress += Math.random() * 15;
+    
+    if (downloadItem.progress >= 100) {
+      downloadItem.progress = 100;
+      downloadItem.status = '已完成';
+      downloadItem.completedAt = new Date().toISOString();
+      
+      // 从队列中移除并添加到历史记录
+      const index = downloadQueue.findIndex(item => item.id === downloadItem.id);
+      if (index !== -1) {
+        downloadQueue.splice(index, 1);
+        downloadHistory.unshift({ ...downloadItem });
+      }
+      
+      console.log('下载完成:', downloadItem.name);
+      clearInterval(downloadInterval);
+    }
+  }, 1000);
 }

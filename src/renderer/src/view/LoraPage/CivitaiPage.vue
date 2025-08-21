@@ -52,7 +52,7 @@ const historyPageSize = ref(10)
 const historyTotal = ref(0)
 
 // 批量下载模型
-const batchDownloadModels = () => {
+const batchDownloadModels = async () => {
   if (!batchModelIds.value.trim()) {
     ElMessage.warning('请输入模型ID')
     return
@@ -64,17 +64,28 @@ const batchDownloadModels = () => {
     return
   }
   
-  // 将模型ID添加到下载队列
-  ids.forEach(id => {
-    downloadQueue.value.push({
-      id: id,
-      name: `模型 ${id}`,
-      status: '等待中',
-      progress: 0
-    })
-  })
+  try {
+    console.log('批量添加模型到下载队列:', ids)
+    const result = await window.api.invoke('batch-add-to-download-queue', ids)
+    
+    if (result.success) {
+      const { added, failed } = result.data
+      if (added.length > 0) {
+        ElMessage.success(`已添加 ${added.length} 个模型到下载队列`)
+      }
+      if (failed.length > 0) {
+        ElMessage.warning(`${failed.length} 个模型添加失败（可能已在队列中）`)
+      }
+      // 刷新下载队列
+      await fetchDownloadQueue()
+    } else {
+      ElMessage.error('批量添加失败: ' + result.error)
+    }
+  } catch (error) {
+    console.error('批量添加下载失败:', error)
+    ElMessage.error('批量添加失败: ' + (error instanceof Error ? error.message : '未知错误'))
+  }
   
-  ElMessage.success(`已添加 ${ids.length} 个模型到下载队列`)
   batchModelIds.value = ''
 }
 
@@ -95,34 +106,92 @@ const getDownloadStatusType = (status: string) => {
   }
 }
 
+// 获取下载队列
+const fetchDownloadQueue = async () => {
+  try {
+    const result = await window.api.invoke('get-download-queue')
+    if (result.success) {
+      downloadQueue.value = result.data
+    } else {
+      console.error('获取下载队列失败:', result.error)
+    }
+  } catch (error) {
+    console.error('获取下载队列失败:', error)
+  }
+}
+
+// 获取下载历史
+const fetchDownloadHistory = async () => {
+  try {
+    const result = await window.api.invoke('get-download-history', historyPage.value, historyPageSize.value)
+    if (result.success) {
+      downloadHistory.value = result.data.items
+      historyTotal.value = result.data.total
+    } else {
+      console.error('获取下载历史失败:', result.error)
+    }
+  } catch (error) {
+    console.error('获取下载历史失败:', error)
+  }
+}
+
 // 开始下载
-const startDownload = (item: any) => {
-  item.status = '下载中'
-  item.progress = Math.min(item.progress + 10, 100)
-  
-  // 模拟下载过程
-  if (item.progress < 100) {
-    setTimeout(() => {
-      startDownload(item)
-    }, 500)
-  } else {
-    item.status = '已完成'
-    // 将完成的下载添加到历史记录
-    downloadHistory.value.unshift({
-      ...item,
-      completedAt: new Date().toLocaleString()
-    })
+const startDownload = async (item: any) => {
+  try {
+    const result = await window.api.invoke('start-download', item.id)
+    if (result.success) {
+      // 更新本地状态
+      const index = downloadQueue.value.findIndex(i => i.id === item.id)
+      if (index !== -1) {
+        downloadQueue.value[index] = result.data
+      }
+      ElMessage.success('下载已开始')
+    } else {
+      ElMessage.error('开始下载失败: ' + result.error)
+    }
+  } catch (error) {
+    console.error('开始下载失败:', error)
+    ElMessage.error('开始下载失败: ' + (error instanceof Error ? error.message : '未知错误'))
   }
 }
 
 // 暂停下载
-const pauseDownload = (item: any) => {
-  item.status = '已暂停'
+const pauseDownload = async (item: any) => {
+  try {
+    const result = await window.api.invoke('pause-download', item.id)
+    if (result.success) {
+      // 更新本地状态
+      const index = downloadQueue.value.findIndex(i => i.id === item.id)
+      if (index !== -1) {
+        downloadQueue.value[index] = result.data
+      }
+      ElMessage.success('下载已暂停')
+    } else {
+      ElMessage.error('暂停下载失败: ' + result.error)
+    }
+  } catch (error) {
+    console.error('暂停下载失败:', error)
+    ElMessage.error('暂停下载失败: ' + (error instanceof Error ? error.message : '未知错误'))
+  }
 }
 
 // 取消下载
-const cancelDownload = (item: any) => {
-  item.status = '已取消'
+const cancelDownload = async (item: any) => {
+  try {
+    const result = await window.api.invoke('cancel-download', item.id)
+    if (result.success) {
+      // 从队列中移除
+      downloadQueue.value = downloadQueue.value.filter(i => i.id !== item.id)
+      // 刷新历史记录
+      await fetchDownloadHistory()
+      ElMessage.success('下载已取消')
+    } else {
+      ElMessage.error('取消下载失败: ' + result.error)
+    }
+  } catch (error) {
+    console.error('取消下载失败:', error)
+    ElMessage.error('取消下载失败: ' + (error instanceof Error ? error.message : '未知错误'))
+  }
 }
 
 // 查看下载结果
@@ -131,8 +200,40 @@ const viewDownloadResult = (item: any) => {
 }
 
 // 处理历史页面变化
-const handleHistoryPageChange = (page: number) => {
+const handleHistoryPageChange = async (page: number) => {
   historyPage.value = page
+  await fetchDownloadHistory()
+}
+
+// 清空下载历史
+const clearDownloadHistory = async () => {
+  try {
+    const result = await ElMessageBox.confirm(
+      '确定要清空所有下载历史记录吗？此操作不可恢复。',
+      '确认清空',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    if (result === 'confirm') {
+      const response = await window.api.invoke('clear-download-history')
+      if (response.success) {
+        downloadHistory.value = []
+        historyTotal.value = 0
+        ElMessage.success(`已清空 ${response.data.clearedCount} 条历史记录`)
+      } else {
+        ElMessage.error('清空失败: ' + response.error)
+      }
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('清空下载历史失败:', error)
+      ElMessage.error('清空失败: ' + (error instanceof Error ? error.message : '未知错误'))
+    }
+  }
 }
 
 // 模型类型
@@ -405,20 +506,21 @@ const downloadModel = async (model: any) => {
     return
   }
 
-  // 重新使用 Electron 的 IPC 调用来处理下载
   try {
-    // 添加类型断言以避免TypeScript错误
-    const result = await window.api.invoke('download-civitai-model', model.downloadUrl, model.name)
+    // 添加到下载队列
+    const result = await window.api.invoke('add-to-download-queue', model.id.toString(), model.name, model.downloadUrl)
     
     if (result.success) {
-      ElMessage.success('模型下载成功')
+      ElMessage.success('已添加到下载队列')
+      // 刷新下载队列
+      await fetchDownloadQueue()
     } else {
-      ElMessage.error('下载失败: ' + (result.error || '未知错误'))
+      ElMessage.error('添加到下载队列失败: ' + result.error)
     }
   } catch (error) {
-    console.error('下载失败:', error)
+    console.error('添加到下载队列失败:', error)
     const errorMessage = error instanceof Error ? error.message : '未知错误'
-    ElMessage.error('下载失败: ' + errorMessage + '，请稍后重试')
+    ElMessage.error('添加到下载队列失败: ' + errorMessage + '，请稍后重试')
   }
 }
 
@@ -433,6 +535,8 @@ const router = useRouter()
 // 页面加载时获取数据
 onMounted(() => {
   fetchModels()
+  fetchDownloadQueue()
+  fetchDownloadHistory()
 })
 </script>
 
@@ -698,8 +802,16 @@ onMounted(() => {
           <div class="history-page">
             <el-card>
               <template #header>
-                <div class="card-header">
+                <div class="card-header flex justify-between items-center">
                   <h3>下载历史</h3>
+                  <el-button
+                    type="danger"
+                    size="small"
+                    @click="clearDownloadHistory"
+                    :disabled="downloadHistory.length === 0"
+                  >
+                    清空历史
+                  </el-button>
                 </div>
               </template>
               
