@@ -10,6 +10,7 @@ import { mainWindow } from '..'
 import { ipcMain, app, net } from 'electron'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import { HttpProxyAgent } from 'http-proxy-agent'
+import { ModelDownloader, ProxySettings } from '../utils/modelDown'
 
 // 获取配置文件路径
 function getConfigPath(): string {
@@ -79,6 +80,9 @@ let downloadHistory: Array<{
 // 下载目录设置
 let downloadDirectory: string = '';
 
+// 创建ModelDownloader实例
+let modelDownloader: ModelDownloader | null = null;
+
 // 创建默认的浏览器请求头
 const defaultHeaders = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -95,6 +99,18 @@ const defaultHeaders = {
 
 export function initAiIpc() {
   // ==================== IPC 通信处理 ====================
+  
+  // 初始化ModelDownloader
+  const proxySettings: ProxySettings = {
+    server: globalProxySettings?.server,
+    enabled: globalProxySettings?.enabled,
+    useSystemProxy: globalProxySettings?.useSystemProxy
+  };
+  
+  modelDownloader = new ModelDownloader({
+    downloadDirectory: downloadDirectory,
+    proxySettings: proxySettings
+  });
 
   /**
    * IPC 测试通信
@@ -263,114 +279,64 @@ export function initAiIpc() {
     try {
       console.log('Start downloading model:', url, filename)
       
-      // 获取全局代理设置
-      const { server, enabled, useSystemProxy } = globalProxySettings;
+      // 检查ModelDownloader是否已初始化
+      if (!modelDownloader) {
+        throw new Error('ModelDownloader not initialized');
+      }
       
-      // 如果启用了系统代理，则直接连接（让系统自动处理代理）
-      if (useSystemProxy) {
-        console.log('Using system proxy to download model');
-        const request = net.request({
-          url: url,
-          method: 'GET',
-          headers: defaultHeaders
-        });
-        
-        const response = await new Promise<{ statusCode: number, headers: any, data: string }>((resolve, reject) => {
-          request.on('response', (res) => {
-            let data = '';
-            res.on('data', (chunk) => {
-              data += chunk;
+      // 更新代理设置
+      const proxySettings: ProxySettings = {
+        server: globalProxySettings?.server,
+        enabled: globalProxySettings?.enabled,
+        useSystemProxy: globalProxySettings?.useSystemProxy
+      };
+      
+      modelDownloader.updateConfig({
+        downloadDirectory: downloadDirectory,
+        proxySettings: proxySettings
+      });
+      
+      // 生成唯一的任务ID
+      const taskId = `download_${Date.now()}`;
+      
+      // 执行下载
+      const success = await modelDownloader.downloadModel(
+        taskId,
+        url,
+        filename,
+        // 进度回调
+        (progress, downloadedSize, totalSize) => {
+          console.log(`Download progress: ${progress}% (${downloadedSize}/${totalSize})`);
+          // 可以通过IPC发送进度更新到渲染进程
+          if (mainWindow) {
+            mainWindow.webContents.send('download-progress', {
+              taskId,
+              progress,
+              downloadedSize,
+              totalSize
             });
-            res.on('end', () => {
-              resolve({
-                statusCode: res.statusCode,
-                headers: res.headers,
-                data: data
-              });
+          }
+        },
+        // 完成回调
+        (success, filePath, error) => {
+          console.log('Download completed:', { success, filePath, error });
+          // 可以通过IPC发送完成通知到渲染进程
+          if (mainWindow) {
+            mainWindow.webContents.send('download-completed', {
+              taskId,
+              success,
+              filePath,
+              error
             });
-          });
-          request.on('error', (error) => {
-            reject(error);
-          });
-          request.end();
-        });
-        
-        if (response.statusCode < 200 || response.statusCode >= 300) {
-          throw new Error(`Download failed: ${response.statusCode} ${response.data}`);
+          }
         }
-        // 这里可以添加实际的文件保存逻辑
-        // 例如：将响应内容保存到文件系统
-        console.log('Model download completed:', filename);
+      );
+      
+      if (success) {
+        console.log('Model download started successfully:', filename);
         return { success: true };
-      }
-      // 如果启用了自定义代理，则配置代理
-      else if (enabled && server) {
-        console.log('Using custom proxy to download model:', server);
-        try {
-          // 使用代理发送请求
-          let agent;
-          if (server.startsWith('https://')) {
-            agent = new HttpsProxyAgent(server);
-          } else {
-            agent = new HttpProxyAgent(server);
-          }
-          
-          // 创建一个AbortController用于超时控制
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
-          
-          // 使用node-fetch通过代理发送请求
-          const nodeFetch = (await import('node-fetch')).default;
-          const response = await nodeFetch(url, {
-            method: 'GET',
-            headers: defaultHeaders,
-            agent: agent,
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
-          
-          if (!response.ok) {
-            throw new Error(`Download failed: ${response.status} ${response.statusText}`);
-          }
-          // 这里可以添加实际的文件保存逻辑
-          // 例如：将响应内容保存到文件系统
-          console.log('Model download completed:', filename);
-          return { success: true };
-        } catch (agentError) {
-          console.error('Use proxy failed:', agentError);
-          throw agentError;
-        }
-      }
-      // 直接连接（无代理）
-      else {
-        console.log('Direct download model');
-        try {
-          // 创建一个AbortController用于超时控制
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
-          
-          // 使用node-fetch直接发送请求
-          const nodeFetch = (await import('node-fetch')).default;
-          const response = await nodeFetch(url, {
-            method: 'GET',
-            headers: defaultHeaders,
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
-          
-          if (!response.ok) {
-            throw new Error(`Download failed: ${response.status} ${response.statusText}`);
-          }
-          // 这里可以添加实际的文件保存逻辑
-          // 例如：将响应内容保存到文件系统
-          console.log('Model download completed:', filename);
-          return { success: true };
-        } catch (error) {
-          console.error('Direct request failed:', error);
-          throw error;
-        }
+      } else {
+        throw new Error('Failed to start download');
       }
     } catch (error) {
       console.error('Download Civitai model failed:', error)

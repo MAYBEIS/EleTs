@@ -19,6 +19,8 @@ import { join } from 'path'
 import { initUserIpc, initTestUsers } from './ipc/userIpc'
 // 导入 AI IPC 处理程序
 import { initAiIpc } from './ipc/aiIpc'
+// 导入下载 IPC 处理程序
+import { initDownloadIpc } from './ipc/downIpc'
 // 导入 https-proxy-agent
 import { HttpsProxyAgent } from 'https-proxy-agent'
 
@@ -180,6 +182,8 @@ if (!gotTheLock) {
     initUserIpc()
     // 初始化 AI IPC 处理程序
     initAiIpc()
+    // 初始化下载 IPC 处理程序
+    initDownloadIpc()
 
     /**
      * 为所有浏览器窗口设置开发工具快捷键监听
