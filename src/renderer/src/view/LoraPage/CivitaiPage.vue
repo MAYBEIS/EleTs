@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-07-21 16:28:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-22 19:35:03
+ * @LastEditTime: 2025-08-22 19:54:45
  * @FilePath: \EleTs\src\renderer\src\view\LoraPage\CivitaiPage.vue
  * @Description: Civitai模型浏览和下载页面
 -->
@@ -536,6 +536,23 @@ const selectDownloadDirectory = async () => {
   }
 }
 
+// 获取代理设置
+const getProxySettings = async () => {
+  try {
+    const response = await ipcRenderer.invoke('get-proxy-settings')
+    if (response.success) {
+      const settings = response.data
+      if (settings) {
+        proxyForm.server = settings.server || ''
+        proxyForm.enabled = settings.enabled || false
+        proxyForm.useSystemProxy = settings.useSystemProxy || false
+      }
+    }
+  } catch (error) {
+    console.error('获取代理设置失败:', error)
+  }
+}
+
 // 获取下载目录
 const getDownloadDirectory = async () => {
   try {
@@ -553,6 +570,7 @@ onMounted(async () => {
   await fetchModels()
   await fetchDownloadQueue()
   await getDownloadDirectory()
+  await getProxySettings()
 })
 </script>
 

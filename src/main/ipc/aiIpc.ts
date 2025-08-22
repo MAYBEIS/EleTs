@@ -100,16 +100,46 @@ const defaultHeaders = {
 export function initAiIpc() {
   // ==================== IPC 通信处理 ====================
   
-  // 初始化ModelDownloader
-  const proxySettings: ProxySettings = {
-    server: globalProxySettings?.server,
-    enabled: globalProxySettings?.enabled,
-    useSystemProxy: globalProxySettings?.useSystemProxy
-  };
-  
-  modelDownloader = new ModelDownloader({
-    downloadDirectory: downloadDirectory,
-    proxySettings: proxySettings
+  // 在初始化时加载配置并创建ModelDownloader
+  loadConfig().then(config => {
+    if (config.downloadDirectory) {
+      downloadDirectory = config.downloadDirectory;
+      console.log('Load download directory setting:', downloadDirectory);
+    }
+    if (config.proxySettings) {
+      globalProxySettings = config.proxySettings;
+      console.log('Load proxy settings:', globalProxySettings);
+    }
+    
+    // 初始化ModelDownloader
+    const proxySettings: ProxySettings = {
+      server: globalProxySettings?.server,
+      enabled: globalProxySettings?.enabled,
+      useSystemProxy: globalProxySettings?.useSystemProxy
+    };
+    
+    modelDownloader = new ModelDownloader({
+      downloadDirectory: downloadDirectory,
+      proxySettings: proxySettings
+    });
+    
+    console.log('ModelDownloader initialized with config:', {
+      downloadDirectory,
+      proxySettings
+    });
+  }).catch(error => {
+    console.error('Failed to load config during initAiIpc:', error);
+    // 即使配置加载失败，也要初始化ModelDownloader
+    const proxySettings: ProxySettings = {
+      server: globalProxySettings?.server,
+      enabled: globalProxySettings?.enabled,
+      useSystemProxy: globalProxySettings?.useSystemProxy
+    };
+    
+    modelDownloader = new ModelDownloader({
+      downloadDirectory: downloadDirectory,
+      proxySettings: proxySettings
+    });
   });
 
   /**
@@ -353,11 +383,35 @@ export function initAiIpc() {
       console.log('Update proxy settings:', settings)
       // Save proxy settings to global variable
       globalProxySettings = settings;
+      // 保存到配置文件
+      const config = await loadConfig()
+      config.proxySettings = settings
+      await saveConfig(config)
       console.log('Proxy settings updated successfully');
       return { success: true }
     } catch (error) {
       console.error('Update proxy settings failed:', error)
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  /**
+   * 获取代理设置
+   * 渲染进程可以通过此 IPC 调用来获取代理设置
+   */
+  ipcMain.handle('get-proxy-settings', async () => {
+    try {
+      // 从配置文件加载
+      const config = await loadConfig()
+      if (config.proxySettings) {
+        globalProxySettings = config.proxySettings
+      }
+      console.log('Get proxy settings:', globalProxySettings);
+      return { success: true, data: globalProxySettings };
+    } catch (error) {
+      console.error('Get proxy settings failed:', error);
+      // 即使加载失败，也返回当前内存中的设置
+      return { success: true, data: globalProxySettings };
     }
   })
 
@@ -880,6 +934,10 @@ loadConfig().then(config => {
   if (config.downloadDirectory) {
     downloadDirectory = config.downloadDirectory
     console.log('Load download directory setting:', downloadDirectory)
+  }
+  if (config.proxySettings) {
+    globalProxySettings = config.proxySettings
+    console.log('Load proxy settings:', globalProxySettings)
   }
 }).catch(error => {
   console.error('Load config failed during initialization:', error)
