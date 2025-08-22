@@ -531,6 +531,15 @@ export function initAiIpc() {
 
       console.log(`Batch add completed: Success ${addedItems.length}, Failed ${failedItems.length}`);
       
+      // 通知UI更新队列
+      if (mainWindow) {
+        mainWindow.webContents.send('download-queue-updated', {
+          queue: downloadQueue,
+          added: addedItems,
+          failed: failedItems
+        });
+      }
+      
       return {
         success: true,
         data: {
@@ -565,6 +574,15 @@ export function initAiIpc() {
       // 更新状态
       downloadItem.status = '下载中';
       
+      // 通知UI下载状态已更新
+      if (mainWindow) {
+        mainWindow.webContents.send('download-status-changed', {
+          taskId: modelId,
+          status: '下载中',
+          item: downloadItem
+        });
+      }
+      
       // 模拟下载过程（实际应用中应该实现真实的下载逻辑）
       simulateDownload(downloadItem);
       
@@ -595,6 +613,15 @@ export function initAiIpc() {
       // 更新状态
       downloadItem.status = '已暂停';
       
+      // 通知UI下载状态已更新
+      if (mainWindow) {
+        mainWindow.webContents.send('download-status-changed', {
+          taskId: modelId,
+          status: '已暂停',
+          item: downloadItem
+        });
+      }
+      
       return { success: true, data: downloadItem };
     } catch (error) {
       console.error('Pause download failed:', error);
@@ -621,15 +648,113 @@ export function initAiIpc() {
       downloadQueue.splice(downloadIndex, 1);
       
       // 添加到历史记录
-      downloadHistory.unshift({
+      const historyItem = {
         ...downloadItem,
         status: '已取消',
         completedAt: new Date().toISOString()
-      });
+      };
+      downloadHistory.unshift(historyItem as any);
+      
+      // 通知UI下载已取消
+      if (mainWindow) {
+        mainWindow.webContents.send('download-cancelled', {
+          taskId: modelId,
+          item: downloadItem,
+          historyItem: historyItem
+        });
+        
+        // 通知UI队列已更新
+        mainWindow.webContents.send('download-queue-updated', {
+          queue: downloadQueue,
+          removed: [downloadItem]
+        });
+      }
       
       return { success: true, data: downloadItem };
     } catch (error) {
       console.error('Cancel download failed:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  });
+
+  /**
+   * 批量开始下载
+   * 渲染进程可以通过此 IPC 调用来批量开始下载多个模型
+   */
+  ipcMain.handle('batch-start-download', async (_event, modelIds: string[]) => {
+    try {
+      console.log('Batch start download models:', modelIds);
+      
+      const results = [];
+      const successCount = { value: 0 };
+      const failCount = { value: 0 };
+      
+      // 使用Promise.allSettled来并行处理所有下载
+      const promises = modelIds.map(async (modelId) => {
+        try {
+          const downloadItem = downloadQueue.find(item => item.id === modelId);
+          if (!downloadItem) {
+            failCount.value++;
+            results.push({ id: modelId, success: false, error: 'Download item not found' });
+            return;
+          }
+
+          if (downloadItem.status !== '等待中' && downloadItem.status !== '已暂停') {
+            failCount.value++;
+            results.push({ id: modelId, success: false, error: 'Can only start waiting or paused downloads' });
+            return;
+          }
+
+          // 更新状态
+          downloadItem.status = '下载中';
+          
+          // 通知UI下载状态已更新
+          if (mainWindow) {
+            mainWindow.webContents.send('download-status-changed', {
+              taskId: modelId,
+              status: '下载中',
+              item: downloadItem
+            });
+          }
+          
+          // 模拟下载过程
+          simulateDownload(downloadItem);
+          
+          successCount.value++;
+          results.push({ id: modelId, success: true, data: downloadItem });
+        } catch (error) {
+          failCount.value++;
+          results.push({
+            id: modelId,
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      });
+      
+      await Promise.allSettled(promises);
+      
+      // 通知UI批量操作完成
+      if (mainWindow) {
+        mainWindow.webContents.send('batch-start-download-completed', {
+          results,
+          successCount: successCount.value,
+          failCount: failCount.value
+        });
+      }
+      
+      console.log(`Batch start download completed: Success ${successCount.value}, Failed ${failCount.value}`);
+      
+      return {
+        success: true,
+        data: {
+          results,
+          successCount: successCount.value,
+          failCount: failCount.value
+        }
+      };
+    } catch (error) {
+      console.error('Batch start download failed:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   });
@@ -769,14 +894,24 @@ console.log('AI IPC handler initialization completed')
 function simulateDownload(downloadItem: any) {
   console.log('Start simulate download:', downloadItem.name);
   
+  // 模拟下载参数
+  const totalSize = Math.floor(Math.random() * 900000) + 100000; // 100KB-1MB随机大小
+  let downloadedSize = 0;
+  const speed = Math.floor(Math.random() * 5000) + 2000; // 2-7KB/s随机速度
+  
+  // 降低下载时间到3秒内完成，每100ms更新一次进度
   const downloadInterval = setInterval(() => {
     if (downloadItem.status !== '下载中') {
       clearInterval(downloadInterval);
       return;
     }
 
-    // 更新进度
-    downloadItem.progress += Math.random() * 15;
+    // 更新下载大小
+    const increment = Math.floor(speed * 0.1); // 100ms内的下载量
+    downloadedSize = Math.min(downloadedSize + increment, totalSize);
+    
+    // 计算进度百分比
+    downloadItem.progress = Math.round((downloadedSize / totalSize) * 100);
     
     if (downloadItem.progress >= 100) {
       downloadItem.progress = 100;
@@ -787,11 +922,41 @@ function simulateDownload(downloadItem: any) {
       const index = downloadQueue.findIndex(item => item.id === downloadItem.id);
       if (index !== -1) {
         downloadQueue.splice(index, 1);
-        downloadHistory.unshift({ ...downloadItem });
+        downloadHistory.unshift({ ...downloadItem } as any);
       }
       
       console.log('Download completed:', downloadItem.name);
       clearInterval(downloadInterval);
+      
+      // 发送下载完成通知到UI
+      if (mainWindow) {
+        mainWindow.webContents.send('download-completed', {
+          taskId: downloadItem.id,
+          success: true,
+          filePath: downloadItem.name,
+          progress: 100,
+          downloadedSize: totalSize,
+          totalSize: totalSize
+        });
+        
+        // 通知UI队列已更新
+        mainWindow.webContents.send('download-queue-updated', {
+          queue: downloadQueue,
+          completed: [downloadItem]
+        });
+      }
+    } else {
+      // 周期性同步下载进度到UI
+      if (mainWindow) {
+        mainWindow.webContents.send('download-progress', {
+          taskId: downloadItem.id,
+          progress: downloadItem.progress,
+          downloadedSize: downloadedSize,
+          totalSize: totalSize,
+          speed: speed,
+          remainingTime: Math.round((totalSize - downloadedSize) / speed * 1000) // 剩余时间(毫秒)
+        });
+      }
     }
-  }, 1000);
+  }, 100); // 每100ms更新一次进度
 }

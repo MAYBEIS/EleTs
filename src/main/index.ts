@@ -178,12 +178,15 @@ if (!gotTheLock) {
     // 设置应用程序用户模型 ID（Windows 任务栏分组）
     electronApp.setAppUserModelId('com.electron')
 
+    // 创建主窗口并保存引用
+    mainWindow = createWindow()
+
     // 初始化用户 IPC 处理程序
     initUserIpc()
     // 初始化 AI IPC 处理程序
     initAiIpc()
     // 初始化下载 IPC 处理程序
-    initDownloadIpc()
+    // initDownloadIpc()
 
     /**
      * 为所有浏览器窗口设置开发工具快捷键监听
@@ -198,9 +201,6 @@ if (!gotTheLock) {
         window.webContents.openDevTools()
       }
     })
-
-    // 创建主窗口并保存引用
-    mainWindow = createWindow()
 
     // 初始化测试用户（开发环境）
     if (is.dev) {

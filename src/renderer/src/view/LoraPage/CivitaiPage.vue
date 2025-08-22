@@ -2,7 +2,7 @@
 // 导入ipcRenderer
 
 
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -12,7 +12,15 @@ import {
   Clock,
   Setting,
   Download,
-  View
+  View,
+  Plus,
+  VideoPlay,
+  VideoPause,
+  RefreshRight,
+  Delete,
+  DocumentCopy,
+  Check,
+  Close
 } from '@element-plus/icons-vue'
 
 // 导航菜单相关
@@ -51,6 +59,47 @@ const historyPage = ref(1)
 const historyPageSize = ref(10)
 const historyTotal = ref(0)
 
+// 批量下载UI状态
+const showBatchHelp = ref(false)
+const isAddingToQueue = ref(false)
+const isStartingDownload = ref(false)
+
+// 计算属性
+const modelIdCount = computed(() => {
+  if (!batchModelIds.value.trim()) return 0
+  return batchModelIds.value.split('\n').filter(id => id.trim()).length
+})
+
+const validModelIdCount = computed(() => {
+  if (!batchModelIds.value.trim()) return 0
+  return batchModelIds.value.split('\n')
+    .filter(id => id.trim())
+    .filter(id => !isNaN(Number(id.trim())))
+    .length
+})
+
+const waitingCount = computed(() => {
+  return downloadQueue.value.filter(item => item.status === '等待中').length
+})
+
+const downloadingCount = computed(() => {
+  return downloadQueue.value.filter(item => item.status === '下载中').length
+})
+
+const pausedCount = computed(() => {
+  return downloadQueue.value.filter(item => item.status === '已暂停').length
+})
+
+const overallProgress = computed(() => {
+  if (downloadQueue.value.length === 0) return 0
+  const totalProgress = downloadQueue.value.reduce((sum, item) => sum + item.progress, 0)
+  return Math.round(totalProgress / downloadQueue.value.length)
+})
+
+const hasActiveDownloads = computed(() => {
+  return downloadQueue.value.some(item => item.status === '下载中')
+})
+
 // 批量下载模型
 const batchDownloadModels = async () => {
   if (!batchModelIds.value.trim()) {
@@ -58,15 +107,19 @@ const batchDownloadModels = async () => {
     return
   }
   
-  const ids = batchModelIds.value.split('\n').map(id => id.trim()).filter(id => id)
-  if (ids.length === 0) {
+  // 验证并过滤ID
+  const allIds = batchModelIds.value.split('\n').map(id => id.trim()).filter(id => id)
+  const validIds = allIds.filter(id => !isNaN(Number(id)))
+  
+  if (validIds.length === 0) {
     ElMessage.warning('请输入有效的模型ID')
     return
   }
   
   try {
-    console.log('批量添加模型到下载队列:', ids)
-    const result = await window.api.invoke('batch-add-to-download-queue', ids)
+    isAddingToQueue.value = true
+    console.log('批量添加模型到下载队列:', validIds)
+    const result = await window.api.invoke('batch-add-to-download-queue', validIds)
     
     if (result.success) {
       const { added, failed } = result.data
@@ -78,15 +131,33 @@ const batchDownloadModels = async () => {
       }
       // 刷新下载队列
       await fetchDownloadQueue()
+      
+      // 询问是否清空输入
+      if (batchModelIds.value.trim()) {
+        try {
+          await ElMessageBox.confirm(
+            '已成功添加模型到下载队列，是否清空输入框？',
+            '操作完成',
+            {
+              confirmButtonText: '清空',
+              cancelButtonText: '保留',
+              type: 'info'
+            }
+          )
+          batchModelIds.value = ''
+        } catch (error) {
+          // 用户选择保留，不做任何操作
+        }
+      }
     } else {
       ElMessage.error('批量添加失败: ' + result.error)
     }
   } catch (error) {
     console.error('批量添加下载失败:', error)
     ElMessage.error('批量添加失败: ' + (error instanceof Error ? error.message : '未知错误'))
+  } finally {
+    isAddingToQueue.value = false
   }
-  
-  batchModelIds.value = ''
 }
 
 // 获取下载状态类型（用于标签颜色）
@@ -203,6 +274,260 @@ const viewDownloadResult = (item: any) => {
 const handleHistoryPageChange = async (page: number) => {
   historyPage.value = page
   await fetchDownloadHistory()
+}
+
+// 从剪贴板粘贴
+const pasteFromClipboard = async () => {
+  try {
+    const text = await navigator.clipboard.readText()
+    if (text) {
+      // 如果已有内容，询问是否追加
+      if (batchModelIds.value.trim()) {
+        const result = await ElMessageBox.confirm(
+          '是否将剪贴板内容追加到现有内容？',
+          '确认操作',
+          {
+            confirmButtonText: '追加',
+            cancelButtonText: '替换',
+            type: 'info'
+          }
+        )
+        
+        if (result === 'confirm') {
+          batchModelIds.value += '\n' + text
+        } else {
+          batchModelIds.value = text
+        }
+      } else {
+        batchModelIds.value = text
+      }
+      ElMessage.success('已从剪贴板粘贴')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('从剪贴板粘贴失败:', error)
+      ElMessage.error('从剪贴板粘贴失败')
+    }
+  }
+}
+
+// 清空批量输入
+const clearBatchInput = () => {
+  ElMessageBox.confirm(
+    '确定要清空所有输入的模型ID吗？',
+    '确认清空',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    }
+  ).then(() => {
+    batchModelIds.value = ''
+    ElMessage.success('已清空输入')
+  }).catch(() => {})
+}
+
+// 验证模型ID
+const validateModelIds = () => {
+  if (!batchModelIds.value.trim()) {
+    ElMessage.warning('请先输入模型ID')
+    return
+  }
+  
+  const ids = batchModelIds.value.split('\n')
+  const validIds: string[] = []
+  const invalidIds: string[] = []
+  
+  ids.forEach(id => {
+    const trimmedId = id.trim()
+    if (trimmedId) {
+      if (!isNaN(Number(trimmedId))) {
+        validIds.push(trimmedId)
+      } else {
+        invalidIds.push(trimmedId)
+      }
+    }
+  })
+  
+  if (invalidIds.length === 0) {
+    ElMessage.success(`所有 ${validIds.length} 个ID格式正确`)
+  } else {
+    ElMessage.warning(`发现 ${invalidIds.length} 个无效ID，已自动过滤`)
+    // 更新输入框，只保留有效ID
+    batchModelIds.value = validIds.join('\n')
+  }
+}
+
+// 批量开始下载
+const batchStartDownload = async () => {
+  if (downloadQueue.value.length === 0) {
+    ElMessage.warning('下载队列为空')
+    return
+  }
+  
+  const waitingIds = downloadQueue.value
+    .filter(item => item.status === '等待中' || item.status === '已暂停')
+    .map(item => item.id)
+  
+  if (waitingIds.length === 0) {
+    ElMessage.warning('没有可开始下载的任务')
+    return
+  }
+  
+  try {
+    isStartingDownload.value = true
+    console.log('批量开始下载:', waitingIds)
+    const result = await window.api.invoke('batch-start-download', waitingIds)
+    
+    if (result.success) {
+      const { successCount, failCount } = result.data
+      if (successCount > 0) {
+        ElMessage.success(`已开始 ${successCount} 个任务下载`)
+      }
+      if (failCount > 0) {
+        ElMessage.warning(`${failCount} 个任务开始失败`)
+      }
+      // 刷新下载队列
+      await fetchDownloadQueue()
+    } else {
+      ElMessage.error('批量开始下载失败: ' + result.error)
+    }
+  } catch (error) {
+    console.error('批量开始下载失败:', error)
+    ElMessage.error('批量开始下载失败: ' + (error instanceof Error ? error.message : '未知错误'))
+  } finally {
+    isStartingDownload.value = false
+  }
+}
+
+// 刷新下载队列
+const refreshDownloadQueue = async () => {
+  await fetchDownloadQueue()
+  ElMessage.success('已刷新下载队列')
+}
+
+// 暂停所有下载
+const pauseAllDownloads = async () => {
+  const downloadingIds = downloadQueue.value
+    .filter(item => item.status === '下载中')
+    .map(item => item.id)
+  
+  if (downloadingIds.length === 0) {
+    ElMessage.warning('没有正在下载的任务')
+    return
+  }
+  
+  try {
+    const results = []
+    for (const id of downloadingIds) {
+      const item = downloadQueue.value.find(i => i.id === id)
+      if (item) {
+        await pauseDownload(item)
+        results.push({ id, success: true })
+      }
+    }
+    
+    const successCount = results.filter(r => r.success).length
+    ElMessage.success(`已暂停 ${successCount} 个下载任务`)
+  } catch (error) {
+    console.error('暂停所有下载失败:', error)
+    ElMessage.error('暂停所有下载失败: ' + (error instanceof Error ? error.message : '未知错误'))
+  }
+}
+
+// 清空所有下载
+const clearAllDownloads = async () => {
+  if (downloadQueue.value.length === 0) {
+    ElMessage.warning('下载队列为空')
+    return
+  }
+  
+  try {
+    const result = await ElMessageBox.confirm(
+      `确定要清空所有 ${downloadQueue.value.length} 个下载任务吗？此操作不可恢复。`,
+      '确认清空',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    if (result === 'confirm') {
+      const ids = downloadQueue.value.map(item => item.id)
+      for (const id of ids) {
+        const item = downloadQueue.value.find(i => i.id === id)
+        if (item) {
+          await cancelDownload(item)
+        }
+      }
+      ElMessage.success(`已清空 ${ids.length} 个下载任务`)
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('清空所有下载失败:', error)
+      ElMessage.error('清空所有下载失败: ' + (error instanceof Error ? error.message : '未知错误'))
+    }
+  }
+}
+
+// 获取表格行类名
+const getRowClassName = ({ row }: { row: any }) => {
+  switch (row.status) {
+    case '下载中':
+      return 'downloading-row'
+    case '已完成':
+      return 'completed-row'
+    case '已暂停':
+      return 'paused-row'
+    case '已取消':
+    case '失败':
+      return 'cancelled-row'
+    default:
+      return 'waiting-row'
+  }
+}
+
+// 获取进度状态
+const getProgressStatus = (status: string) => {
+  switch (status) {
+    case '下载中':
+      return ''
+    case '已完成':
+      return 'success'
+    case '已暂停':
+      return 'warning'
+    case '已取消':
+    case '失败':
+      return 'exception'
+    default:
+      return ''
+  }
+}
+
+// 格式化速度
+const formatSpeed = (speed?: number) => {
+  if (!speed) return '0 KB/s'
+  if (speed < 1024) return `${speed} B/s`
+  if (speed < 1024 * 1024) return `${(speed / 1024).toFixed(1)} KB/s`
+  return `${(speed / (1024 * 1024)).toFixed(1)} MB/s`
+}
+
+// 格式化时间
+const formatTime = (time?: number) => {
+  if (!time) return '计算中...'
+  if (time < 1000) return '即将完成'
+  
+  const seconds = Math.floor(time / 1000)
+  if (seconds < 60) return `${seconds}秒`
+  
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  if (minutes < 60) return `${minutes}分${remainingSeconds}秒`
+  
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  return `${hours}小时${remainingMinutes}分`
 }
 
 // 清空下载历史
@@ -765,82 +1090,224 @@ onMounted(() => {
         <!-- 下载列表页面 -->
         <template v-if="activeMenu === 'downloads'">
           <div class="downloads-page">
+            <!-- 批量下载卡片 -->
             <el-card class="mb-4">
               <template #header>
                 <div class="card-header flex justify-between items-center">
                   <h3>批量下载</h3>
+                  <el-button type="text" @click="showBatchHelp = !showBatchHelp">
+                    {{ showBatchHelp ? '隐藏帮助' : '显示帮助' }}
+                  </el-button>
                 </div>
               </template>
               
+              <!-- 帮助信息 -->
+              <el-alert
+                v-if="showBatchHelp"
+                title="批量下载使用说明"
+                type="info"
+                :closable="false"
+                class="mb-4"
+              >
+                <ul class="help-list">
+                  <li>每行输入一个模型ID，ID为数字格式</li>
+                  <li>支持从剪贴板粘贴多个ID</li>
+                  <li>系统会自动过滤重复和无效的ID</li>
+                  <li>添加后可以在下载队列中管理所有任务</li>
+                </ul>
+              </el-alert>
+              
               <el-form label-width="120px">
                 <el-form-item label="模型ID列表">
-                  <el-input
-                    v-model="batchModelIds"
-                    type="textarea"
-                    :rows="4"
-                    placeholder="请输入模型ID，每行一个ID"
-                  />
+                  <div class="batch-input-container">
+                    <el-input
+                      v-model="batchModelIds"
+                      type="textarea"
+                      :rows="6"
+                      placeholder="请输入模型ID，每行一个ID&#10;例如：&#10;12345&#10;67890&#10;13579"
+                    />
+                    <div class="batch-input-actions">
+                      <el-button @click="pasteFromClipboard" size="small" :icon="DocumentCopy">
+                        粘贴
+                      </el-button>
+                      <el-button @click="clearBatchInput" size="small" :icon="Delete">
+                        清空
+                      </el-button>
+                      <el-button @click="validateModelIds" size="small" :icon="Check">
+                        验证
+                      </el-button>
+                    </div>
+                  </div>
+                  <div class="batch-input-stats">
+                    <span>已输入: {{ modelIdCount }} 个ID</span>
+                    <span>有效: {{ validModelIdCount }} 个ID</span>
+                  </div>
                 </el-form-item>
                 
                 <el-form-item>
-                  <el-button
-                    type="primary"
-                    @click="batchDownloadModels"
-                  >
-                    批量下载
-                  </el-button>
+                  <div class="batch-actions">
+                    <el-button
+                      type="primary"
+                      @click="batchDownloadModels"
+                      :loading="isAddingToQueue"
+                      :icon="Plus"
+                    >
+                      添加到队列
+                    </el-button>
+                    <el-button
+                      v-if="downloadQueue.length > 0"
+                      type="success"
+                      @click="batchStartDownload"
+                      :loading="isStartingDownload"
+                      :icon="VideoPlay"
+                    >
+                      开始全部下载
+                    </el-button>
+                  </div>
                 </el-form-item>
               </el-form>
             </el-card>
             
+            <!-- 下载队列卡片 -->
             <el-card>
               <template #header>
-                <div class="card-header">
-                  <h3>下载队列</h3>
+                <div class="card-header flex justify-between items-center">
+                  <h3>下载队列 ({{ downloadQueue.length }})</h3>
+                  <div class="queue-actions">
+                    <el-button
+                      v-if="downloadQueue.length > 0"
+                      size="small"
+                      @click="refreshDownloadQueue"
+                      :icon="RefreshRight"
+                    >
+                      刷新
+                    </el-button>
+                    <el-button
+                      v-if="hasActiveDownloads"
+                      size="small"
+                      type="warning"
+                      @click="pauseAllDownloads"
+                      :icon="VideoPause"
+                    >
+                      暂停全部
+                    </el-button>
+                    <el-button
+                      v-if="downloadQueue.length > 0"
+                      size="small"
+                      type="danger"
+                      @click="clearAllDownloads"
+                      :icon="Delete"
+                    >
+                      清空队列
+                    </el-button>
+                  </div>
                 </div>
               </template>
               
-              <el-table :data="downloadQueue" style="width: 100%">
-                <el-table-column prop="id" label="模型ID" width="100" />
-                <el-table-column prop="name" label="模型名称" />
-                <el-table-column prop="status" label="状态" width="120">
-                  <template #default="scope">
-                    <el-tag :type="getDownloadStatusType(scope.row.status)">
-                      {{ scope.row.status }}
-                    </el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="progress" label="进度" width="120">
-                  <template #default="scope">
-                    <el-progress :percentage="scope.row.progress" :show-text="false" />
-                  </template>
-                </el-table-column>
-                <el-table-column label="操作" width="120">
-                  <template #default="scope">
-                    <el-button
-                      v-if="scope.row.status === '等待中' || scope.row.status === '已暂停'"
-                      size="small"
-                      @click="startDownload(scope.row)"
-                    >
-                      开始
-                    </el-button>
-                    <el-button
-                      v-else-if="scope.row.status === '下载中'"
-                      size="small"
-                      @click="pauseDownload(scope.row)"
-                    >
-                      暂停
-                    </el-button>
-                    <el-button
-                      size="small"
-                      type="danger"
-                      @click="cancelDownload(scope.row)"
-                    >
-                      取消
-                    </el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
+              <!-- 队列统计信息 -->
+              <div v-if="downloadQueue.length > 0" class="queue-stats mb-4">
+                <el-row :gutter="16">
+                  <el-col :span="6">
+                    <div class="stat-card waiting">
+                      <div class="stat-value">{{ waitingCount }}</div>
+                      <div class="stat-label">等待中</div>
+                    </div>
+                  </el-col>
+                  <el-col :span="6">
+                    <div class="stat-card downloading">
+                      <div class="stat-value">{{ downloadingCount }}</div>
+                      <div class="stat-label">下载中</div>
+                    </div>
+                  </el-col>
+                  <el-col :span="6">
+                    <div class="stat-card paused">
+                      <div class="stat-value">{{ pausedCount }}</div>
+                      <div class="stat-label">已暂停</div>
+                    </div>
+                  </el-col>
+                  <el-col :span="6">
+                    <div class="stat-card progress">
+                      <div class="stat-value">{{ overallProgress }}%</div>
+                      <div class="stat-label">总进度</div>
+                    </div>
+                  </el-col>
+                </el-row>
+              </div>
+              
+              <!-- 下载队列表格 -->
+              <div v-if="downloadQueue.length > 0" class="download-table-container">
+                <el-table :data="downloadQueue" style="width: 100%" :row-class-name="getRowClassName">
+                  <el-table-column prop="id" label="模型ID" width="100" />
+                  <el-table-column prop="name" label="模型名称" min-width="200" show-overflow-tooltip />
+                  <el-table-column prop="status" label="状态" width="100">
+                    <template #default="scope">
+                      <el-tag :type="getDownloadStatusType(scope.row.status)" size="small">
+                        {{ scope.row.status }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="进度" width="200">
+                    <template #default="scope">
+                      <div class="progress-container">
+                        <el-progress
+                          :percentage="scope.row.progress"
+                          :status="getProgressStatus(scope.row.status)"
+                          :stroke-width="8"
+                          :show-text="true"
+                          :text-inside="true"
+                        />
+                        <div v-if="scope.row.status === '下载中'" class="progress-info">
+                          <span class="progress-speed">{{ formatSpeed(scope.row.speed) }}</span>
+                          <span class="progress-time">{{ formatTime(scope.row.remainingTime) }}</span>
+                        </div>
+                      </div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="操作" width="200">
+                    <template #default="scope">
+                      <div class="table-actions">
+                        <el-button
+                          v-if="scope.row.status === '等待中' || scope.row.status === '已暂停'"
+                          size="small"
+                          type="primary"
+                          @click="startDownload(scope.row)"
+                          :icon="VideoPlay"
+                        >
+                          开始
+                        </el-button>
+                        <el-button
+                          v-else-if="scope.row.status === '下载中'"
+                          size="small"
+                          type="warning"
+                          @click="pauseDownload(scope.row)"
+                          :icon="VideoPause"
+                        >
+                          暂停
+                        </el-button>
+                        <el-button
+                          size="small"
+                          type="danger"
+                          @click="cancelDownload(scope.row)"
+                          :icon="Close"
+                        >
+                          取消
+                        </el-button>
+                      </div>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
+              
+              <!-- 空状态 -->
+              <el-empty
+                v-else
+                description="下载队列为空"
+                :image-size="120"
+              >
+                <el-button type="primary" @click="activeMenu = 'home'">
+                  去发现模型
+                </el-button>
+              </el-empty>
             </el-card>
           </div>
         </template>
@@ -1344,6 +1811,129 @@ onMounted(() => {
     color: #909399;
     font-size: 12px;
     margin-top: 4px;
+  }
+}
+
+// 下载页面样式
+.downloads-page {
+  .help-list {
+    padding-left: 20px;
+    margin: 10px 0;
+    
+    li {
+      margin-bottom: 5px;
+      color: #606266;
+    }
+  }
+  
+  .batch-input-container {
+    position: relative;
+    
+    .batch-input-actions {
+      position: absolute;
+      right: 10px;
+      bottom: 10px;
+      display: flex;
+      gap: 5px;
+    }
+  }
+  
+  .batch-input-stats {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    font-size: 12px;
+    color: #909399;
+  }
+  
+  .batch-actions {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .queue-actions {
+    display: flex;
+    gap: 5px;
+  }
+  
+  .queue-stats {
+    .stat-card {
+      background: #f5f7fa;
+      border-radius: 6px;
+      padding: 15px;
+      text-align: center;
+      
+      .stat-value {
+        font-size: 24px;
+        font-weight: bold;
+        margin-bottom: 5px;
+      }
+      
+      .stat-label {
+        font-size: 12px;
+        color: #909399;
+      }
+      
+      &.waiting .stat-value {
+        color: #409eff;
+      }
+      
+      &.downloading .stat-value {
+        color: #67c23a;
+      }
+      
+      &.paused .stat-value {
+        color: #e6a23c;
+      }
+      
+      &.progress .stat-value {
+        color: #909399;
+      }
+    }
+  }
+  
+  .download-table-container {
+    .progress-container {
+      .progress-info {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 5px;
+        font-size: 12px;
+        color: #909399;
+        
+        .progress-speed, .progress-time {
+          display: inline-block;
+        }
+      }
+    }
+    
+    .table-actions {
+      display: flex;
+      gap: 5px;
+    }
+  }
+  
+  // 表格行样式
+  :deep(.el-table) {
+    .waiting-row {
+      background-color: #f5f7fa;
+    }
+    
+    .downloading-row {
+      background-color: #f0f9ff;
+    }
+    
+    .paused-row {
+      background-color: #fdf6ec;
+    }
+    
+    .completed-row {
+      background-color: #f0f9ff;
+    }
+    
+    .cancelled-row {
+      background-color: #fef0f0;
+    }
   }
 }
 </style>
