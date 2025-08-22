@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2024-12-08 15:34:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-21 22:03:07
+ * @LastEditTime: 2025-08-22 18:25:32
  * @FilePath: \EleTs\src\renderer\src\App.vue
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 -->
@@ -10,6 +10,8 @@
 <script setup>
 import { RouterView } from 'vue-router'
 import WelcomeAnimation from './view/Components/Loader/WelcomeAnimation.vue';
+import CivitaiPage from './view/LoraPage/CivitaiPage.vue';
+
 
 const showWelcome = ref(true)
 
@@ -28,7 +30,7 @@ const handleWelcomeComplete = () => {
       v-if="showWelcome" 
       :onComplete="handleWelcomeComplete" 
     />
-    <RouterView v-else />
+    <CivitaiPage v-else class="h-full w-full flex "/>
   </div>
 </template>
 

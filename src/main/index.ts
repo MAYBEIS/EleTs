@@ -101,6 +101,11 @@ function createWindow(): BrowserWindow {
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()  // 显示窗口
     mainWindow.setMenu(null)  // 禁用菜单栏，防止 Alt 键显示菜单
+    
+    // 在开发模式下自动打开开发者工具
+    if (is.dev) {
+      mainWindow.webContents.openDevTools()
+    }
   })
 
   /**
@@ -180,19 +185,21 @@ if (!gotTheLock) {
     initAiIpc()
     // 初始化下载 IPC 处理程序
     // initDownloadIpc()
+    
+    // 注册 IPC 处理程序，允许从渲染进程打开开发者工具
+    ipcMain.handle('open-dev-tools', async () => {
+      if (mainWindow) {
+        mainWindow.webContents.openDevTools()
+      }
+    })
 
     /**
      * 为所有浏览器窗口设置开发工具快捷键监听
-     * 在开发模式下自动打开开发者工具
+     * 在开发模式下可以通过快捷键（如 F12）打开开发者工具
      */
     app.on('browser-window-created', (_, window) => {
       // 监听窗口快捷键（如 F12 打开开发工具）
       optimizer.watchWindowShortcuts(window)
-      
-      if (is.dev) {
-        // 开发模式下自动打开开发者工具
-        window.webContents.openDevTools()
-      }
     })
 
     /**
@@ -215,4 +222,3 @@ if (!gotTheLock) {
     }
   })
 }
-
