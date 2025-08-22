@@ -15,12 +15,8 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import electronLog from 'electron-log'
 // 导入 Node.js 路径处理模块
 import { join } from 'path'
-// 导入用户 IPC 处理程序
-import { initUserIpc, initTestUsers } from './ipc/userIpc'
 // 导入 AI IPC 处理程序
 import { initAiIpc } from './ipc/aiIpc'
-// 导入下载 IPC 处理程序
-import { initDownloadIpc } from './ipc/downIpc'
 // 导入 https-proxy-agent
 import { HttpsProxyAgent } from 'https-proxy-agent'
 
@@ -180,9 +176,6 @@ if (!gotTheLock) {
 
     // 创建主窗口并保存引用
     mainWindow = createWindow()
-
-    // 初始化用户 IPC 处理程序
-    initUserIpc()
     // 初始化 AI IPC 处理程序
     initAiIpc()
     // 初始化下载 IPC 处理程序
@@ -201,11 +194,6 @@ if (!gotTheLock) {
         window.webContents.openDevTools()
       }
     })
-
-    // 初始化测试用户（开发环境）
-    if (is.dev) {
-      initTestUsers()
-    }
 
     /**
      * macOS 特有的应用激活事件处理

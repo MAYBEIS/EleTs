@@ -8,7 +8,6 @@
  */
 import { createRouter, createWebHashHistory, RouteRecordRaw } from 'vue-router'
 import CivitaiPage from '../view/LoraPage/CivitaiPage.vue'
-import ModelDetailPage from '../view/LoraPage/ModelDetailPage.vue'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -20,12 +19,6 @@ const routes: RouteRecordRaw[] = [
     name: 'Civitai',
     component: CivitaiPage
   },
-  {
-    path: '/model/:id',
-    name: 'ModelDetail',
-    component: ModelDetailPage,
-    props: true
-  }
 ]
 
 export const router = createRouter({
