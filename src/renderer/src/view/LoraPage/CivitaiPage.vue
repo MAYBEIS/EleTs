@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-07-21 16:28:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-22 20:56:45
+ * @LastEditTime: 2025-08-22 21:09:32
  * @FilePath: \EleTs\src\renderer\src\view\LoraPage\CivitaiPage.vue
  * @Description: Civitai模型浏览和下载页面
 -->
@@ -20,25 +20,26 @@ import {
   CloudDownloadOutlined,
   FolderOpenOutlined
 } from '@ant-design/icons-vue'
-import { 
-  Button, 
-  Input, 
-  Table, 
-  Card, 
-  Row, 
-  Col, 
-  Pagination, 
-  Spin, 
-  Alert, 
-  Modal, 
-  Form, 
-  Switch, 
+import {
+  Button,
+  Input,
+  Table,
+  Card,
+  Row,
+  Col,
+  Pagination,
+  Spin,
+  Alert,
+  Modal,
+  Form,
+  Switch,
   Select,
   Tag,
   Progress,
   Menu,
   Layout,
-  Divider
+  Divider,
+  Radio
 } from 'ant-design-vue'
 import type { TableColumnsType, MenuProps } from 'ant-design-vue'
 
@@ -120,12 +121,24 @@ const proxyForm = reactive({
 // 下载目录
 const downloadDirectory = ref('')
 
+// 批量下载相关状态
+const batchDownloadInput = ref('')
+const batchDownloadType = ref('id') // 'id' 或 'url'
+const batchDownloadLoading = ref(false)
+const parsedModelList = ref<Array<{id: string, name: string, url?: string}>>([])
+const batchDownloadProgress = ref(0)
+
 // 菜单选项
 const menuItems: MenuProps['items'] = [
   {
     key: 'models',
     icon: h(FileSearchOutlined),
     label: '模型浏览'
+  },
+  {
+    key: 'batch-download',
+    icon: h(DownloadOutlined),
+    label: '模型下载'
   },
   {
     key: 'downloads',
@@ -400,6 +413,9 @@ const downloadColumns: TableColumnsType = [
 
 // 计算属性 - 是否显示模型浏览页面
 const showModelsPage = computed(() => selectedKey.value === 'models')
+
+// 计算属性 - 是否显示批量下载页面
+const showBatchDownloadPage = computed(() => selectedKey.value === 'batch-download')
 
 // 计算属性 - 是否显示下载队列页面
 const showDownloadsPage = computed(() => selectedKey.value === 'downloads')
@@ -716,12 +732,212 @@ const getDownloadDirectory = async () => {
   }
 }
 
+// 解析模型ID或URL
+const parseModelInput = (input: string): Array<{id: string, name: string, url?: string}> => {
+  const lines = input.split('\n').filter(line => line.trim())
+  const result: Array<{id: string, name: string, url?: string}> = []
+  
+  for (const line of lines) {
+    const trimmedLine = line.trim()
+    if (!trimmedLine) continue
+    
+    if (batchDownloadType.value === 'id') {
+      // 直接处理ID
+      result.push({
+        id: trimmedLine,
+        name: `Model ${trimmedLine}`
+      })
+    } else {
+      // 处理URL，提取模型ID
+      let modelId = ''
+      
+      // Civitai URL 格式: https://civitai.com/models/12345/model-name
+      const civitaiMatch = trimmedLine.match(/civitai\.com\/models\/(\d+)/)
+      if (civitaiMatch) {
+        modelId = civitaiMatch[1]
+      }
+      
+      if (modelId) {
+        result.push({
+          id: modelId,
+          name: `Model ${modelId}`,
+          url: trimmedLine
+        })
+      }
+    }
+  }
+  
+  return result
+}
+
+// 解析输入并获取模型信息
+const parseAndFetchModelInfo = async () => {
+  if (!batchDownloadInput.value.trim()) {
+    Modal.warning({
+      title: '提示',
+      content: '请输入模型ID或URL'
+    })
+    return
+  }
+  
+  try {
+    batchDownloadLoading.value = true
+    parsedModelList.value = []
+    
+    // 解析输入
+    const parsedList = parseModelInput(batchDownloadInput.value)
+    
+    if (parsedList.length === 0) {
+      Modal.warning({
+        title: '提示',
+        content: '未能解析到有效的模型ID或URL'
+      })
+      return
+    }
+    
+    // 获取每个模型的详细信息
+    for (const item of parsedList) {
+      try {
+        const url = `https://civitai.com/api/v1/models/${item.id}`
+        const response = await ipcRenderer.invoke('fetch-civitai-models', url, {})
+        
+        if (response.ok) {
+          const modelData = response.data
+          parsedModelList.value.push({
+            id: item.id,
+            name: modelData.name || item.name,
+            url: item.url
+          })
+        } else {
+          // 如果获取失败，使用默认名称
+          parsedModelList.value.push({
+            id: item.id,
+            name: item.name,
+            url: item.url
+          })
+        }
+      } catch (error) {
+        console.error(`获取模型 ${item.id} 信息失败:`, error)
+        // 如果获取失败，使用默认名称
+        parsedModelList.value.push({
+          id: item.id,
+          name: item.name,
+          url: item.url
+        })
+      }
+    }
+    
+    Modal.success({
+      title: '解析成功',
+      content: `成功解析 ${parsedModelList.value.length} 个模型`
+    })
+  } catch (error) {
+    console.error('解析模型信息失败:', error)
+    Modal.error({
+      title: '解析失败',
+      content: '解析模型信息时发生错误'
+    })
+  } finally {
+    batchDownloadLoading.value = false
+  }
+}
+
+// 批量添加到下载队列
+const batchAddToDownloadQueue = async () => {
+  if (parsedModelList.value.length === 0) {
+    Modal.warning({
+      title: '提示',
+      content: '请先解析模型信息'
+    })
+    return
+  }
+  
+  try {
+    batchDownloadLoading.value = true
+    batchDownloadProgress.value = 0
+    
+    const total = parsedModelList.value.length
+    let successCount = 0
+    let failCount = 0
+    
+    for (let i = 0; i < parsedModelList.value.length; i++) {
+      const model = parsedModelList.value[i]
+      
+      try {
+        // 获取模型的下载URL
+        const modelUrl = `https://civitai.com/api/v1/models/${model.id}`
+        const response = await ipcRenderer.invoke('fetch-civitai-models', modelUrl, {})
+        
+        if (response.ok) {
+          const modelData = response.data
+          const version = modelData.modelVersions?.[0]
+          const file = version?.files?.[0]
+          
+          if (file?.downloadUrl) {
+            // 添加到下载队列
+            const result = await ipcRenderer.invoke('add-to-download-queue', model.id, model.name, file.downloadUrl)
+            
+            if (result.success) {
+              successCount++
+            } else {
+              failCount++
+              console.error(`添加模型 ${model.id} 到下载队列失败:`, result.error)
+            }
+          } else {
+            failCount++
+            console.error(`模型 ${model.id} 没有可下载的文件`)
+          }
+        } else {
+          failCount++
+          console.error(`获取模型 ${model.id} 信息失败:`, response.error)
+        }
+      } catch (error) {
+        failCount++
+        console.error(`处理模型 ${model.id} 时发生错误:`, error)
+      }
+      
+      // 更新进度
+      batchDownloadProgress.value = Math.round(((i + 1) / total) * 100)
+    }
+    
+    // 刷新下载队列
+    await fetchDownloadQueue()
+    
+    Modal.success({
+      title: '批量添加完成',
+      content: `成功添加 ${successCount} 个模型，失败 ${failCount} 个`
+    })
+    
+    // 清空解析结果
+    parsedModelList.value = []
+    batchDownloadInput.value = ''
+    batchDownloadProgress.value = 0
+  } catch (error) {
+    console.error('批量添加到下载队列失败:', error)
+    Modal.error({
+      title: '添加失败',
+      content: '批量添加到下载队列时发生错误'
+    })
+  } finally {
+    batchDownloadLoading.value = false
+  }
+}
+
+// 清空解析结果
+const clearParsedModels = () => {
+  parsedModelList.value = []
+  batchDownloadProgress.value = 0
+}
+
 // 页面初始化
 onMounted(async () => {
+  // 先获取代理设置和下载目录
+  await getProxySettings()
+  await getDownloadDirectory()
+  
+  // 然后再获取模型数据和下载队列
   await fetchModels()
   await fetchDownloadQueue()
-  await getDownloadDirectory()
-  await getProxySettings()
   
   // 监听下载进度更新事件
   ipcRenderer.on('download-progress', (_event, data) => {
@@ -858,6 +1074,108 @@ onMounted(async () => {
                     @showSizeChange="(current, size) => { pageSize = size; fetchModels(current); }"
                   />
                 </div>
+              </div>
+            </Card>
+          </div>
+          
+          <div v-if="showBatchDownloadPage">
+            <Card title="模型下载" style="width: 100%;">
+              <div style="margin-bottom: 24px;">
+                <h3 style="margin-bottom: 16px;"><DownloadOutlined /> 批量下载模型</h3>
+                
+                <!-- 输入类型选择 -->
+                <div style="margin-bottom: 16px;">
+                  <div style="margin-bottom: 8px;">输入类型:</div>
+                  <Radio.Group v-model:value="batchDownloadType" button-style="solid">
+                    <Radio.Button value="id">模型ID</Radio.Button>
+                    <Radio.Button value="url">网页地址</Radio.Button>
+                  </Radio.Group>
+                </div>
+                
+                <!-- 输入区域 -->
+                <div style="margin-bottom: 16px;">
+                  <div style="margin-bottom: 8px;">
+                    {{ batchDownloadType === 'id' ? '模型ID列表' : '网页地址列表' }}
+                    <span style="color: #999; font-size: 12px; margin-left: 8px;">
+                      (每行一个{{ batchDownloadType === 'id' ? 'ID' : 'URL' }})
+                    </span>
+                  </div>
+                  <Input.TextArea
+                    v-model:value="batchDownloadInput"
+                    :placeholder="batchDownloadType === 'id' ?
+                      '请输入模型ID，每行一个，例如：\n12345\n67890\n11111' :
+                      '请输入Civitai网页地址，每行一个，例如：\nhttps://civitai.com/models/12345/model-name\nhttps://civitai.com/models/67890/another-model'"
+                    :rows="6"
+                    style="margin-bottom: 8px;"
+                  />
+                </div>
+                
+                <!-- 操作按钮 -->
+                <div style="margin-bottom: 16px;">
+                  <Button
+                    type="primary"
+                    @click="parseAndFetchModelInfo"
+                    :loading="batchDownloadLoading"
+                    style="margin-right: 8px;"
+                  >
+                    <template #icon>
+                      <SearchOutlined />
+                    </template>
+                    解析模型
+                  </Button>
+                  <Button
+                    @click="batchAddToDownloadQueue"
+                    :loading="batchDownloadLoading"
+                    :disabled="parsedModelList.length === 0"
+                    style="margin-right: 8px;"
+                  >
+                    <template #icon>
+                      <CloudDownloadOutlined />
+                    </template>
+                    批量下载
+                  </Button>
+                  <Button
+                    @click="clearParsedModels"
+                    :disabled="parsedModelList.length === 0"
+                  >
+                    <template #icon>
+                      <ReloadOutlined />
+                    </template>
+                    清空
+                  </Button>
+                </div>
+                
+                <!-- 进度显示 -->
+                <div v-if="batchDownloadLoading && batchDownloadProgress > 0" style="margin-bottom: 16px;">
+                  <div style="margin-bottom: 8px;">处理进度:</div>
+                  <Progress :percent="batchDownloadProgress" status="active" />
+                </div>
+                
+                <!-- 解析结果 -->
+                <div v-if="parsedModelList.length > 0" style="margin-bottom: 16px;">
+                  <div style="margin-bottom: 8px;">解析结果 ({{ parsedModelList.length }} 个模型):</div>
+                  <div style="max-height: 200px; overflow-y: auto; border: 1px solid #d9d9d9; border-radius: 4px; padding: 8px;">
+                    <div
+                      v-for="model in parsedModelList"
+                      :key="model.id"
+                      style="padding: 4px 0; border-bottom: 1px solid #f0f0f0;"
+                    >
+                      <div style="font-weight: bold;">{{ model.name }}</div>
+                      <div style="font-size: 12px; color: #666;">ID: {{ model.id }}</div>
+                      <div v-if="model.url" style="font-size: 12px; color: #999; word-break: break-all;">
+                        URL: {{ model.url }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- 使用说明 -->
+                <Alert
+                  message="使用说明"
+                  description="模型ID格式：直接输入数字ID，如 12345。网页地址格式：输入Civitai模型页面完整URL，系统会自动提取模型ID。"
+                  type="info"
+                  show-icon
+                />
               </div>
             </Card>
           </div>
