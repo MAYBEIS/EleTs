@@ -3,6 +3,9 @@
  * 负责创建和管理应用程序窗口，处理应用程序生命周期事件
  * 以及设置 IPC 通信处理程序
  */
+// 设置环境变量以支持中文编码
+process.env.NODE_ENV = process.env.NODE_ENV || 'production'
+process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true'
 
 // 导入 Electron 工具包，提供常用的 Electron 开发工具
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
@@ -33,6 +36,15 @@ electronLog.transports.file.level = 'debug'
 
 // 设置日志文件的最大大小为 10MB，超过后会自动轮转
 electronLog.transports.file.maxSize = 10 * 1024 * 1024
+// 设置控制台输出编码为 UTF-8
+if (process.platform === 'win32') {
+  electronLog.transports.console.format = '{y}-{m}-{d} {h}:{i}:{s}.{ms} > {text}'
+  electronLog.transports.console.useStyles = true
+}
+
+// 设置文件传输编码为 UTF-8
+electronLog.transports.file.format = '{y}-{m}-{d} {h}:{i}:{s}.{ms} > {text}'
+
 
 // 将 electronLog 的日志函数绑定到全局 console 对象
 // 这样所有的 console.log、console.error 等调用都会被 electronLog 捕获

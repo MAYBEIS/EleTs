@@ -266,6 +266,53 @@ const proxyServer = ref(localStorage.getItem('proxy_server') || '')
 const proxyEnabled = ref(localStorage.getItem('proxy_enabled') === 'true')
 const useSystemProxy = ref(localStorage.getItem('use_system_proxy') === 'true')
 
+// 下载目录设置
+const downloadDirectory = ref('')
+
+// 选择下载目录
+const selectDownloadDirectory = async () => {
+  try {
+    const result = await window.api.invoke('select-download-directory')
+    if (result.success) {
+      downloadDirectory.value = result.data
+    } else {
+      ElMessage.error('选择下载目录失败: ' + result.error)
+    }
+  } catch (error) {
+    console.error('选择下载目录失败:', error)
+    ElMessage.error('选择下载目录失败: ' + (error instanceof Error ? error.message : '未知错误'))
+  }
+}
+
+// 保存下载设置
+const saveDownloadSettings = async () => {
+  try {
+    const result = await window.api.invoke('save-download-directory', downloadDirectory.value)
+    if (result.success) {
+      ElMessage.success('下载设置已保存')
+    } else {
+      ElMessage.error('保存下载设置失败: ' + result.error)
+    }
+  } catch (error) {
+    console.error('保存下载设置失败:', error)
+    ElMessage.error('保存下载设置失败: ' + (error instanceof Error ? error.message : '未知错误'))
+  }
+}
+
+// 加载下载设置
+const loadDownloadSettings = async () => {
+  try {
+    const result = await window.api.invoke('get-download-directory')
+    if (result.success) {
+      downloadDirectory.value = result.data
+    } else {
+      console.warn('加载下载目录设置失败:', result.error)
+    }
+  } catch (error) {
+    console.error('加载下载设置失败:', error)
+  }
+}
+
 // 保存 API 设置
 const saveApiSettings = (key: string, endpoint: string) => {
   try {
@@ -537,6 +584,7 @@ onMounted(() => {
   fetchModels()
   fetchDownloadQueue()
   fetchDownloadHistory()
+  loadDownloadSettings()
 })
 </script>
 
@@ -927,13 +975,17 @@ onMounted(() => {
               <el-form label-width="120px">
                 <el-form-item label="下载目录">
                   <el-input
+                    v-model="downloadDirectory"
                     readonly
                     placeholder="请选择下载目录"
                   >
                     <template #append>
-                      <el-button>选择目录</el-button>
+                      <el-button @click="selectDownloadDirectory">选择目录</el-button>
                     </template>
                   </el-input>
+                  <div class="form-help text-xs text-gray-500 mt-1">
+                    选择模型文件的默认下载位置
+                  </div>
                 </el-form-item>
 
                 <el-form-item label="自动分类">
@@ -941,6 +993,15 @@ onMounted(() => {
                   <div class="form-help text-xs text-gray-500 mt-1">
                     开启后会按模型类型自动分类到子文件夹
                   </div>
+                </el-form-item>
+                
+                <el-form-item>
+                  <el-button
+                    type="primary"
+                    @click="saveDownloadSettings"
+                  >
+                    保存下载设置
+                  </el-button>
                 </el-form-item>
               </el-form>
             </el-card>

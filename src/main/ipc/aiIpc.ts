@@ -3,10 +3,43 @@
  * 处理所有与 AI 相关的 IPC 通信
  */
 
+import { promises as fs, existsSync } from 'fs'
+import * as path from 'path'
+
 import { mainWindow } from '..'
 import { ipcMain, app, net } from 'electron'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import { HttpProxyAgent } from 'http-proxy-agent'
+
+// 获取配置文件路径
+function getConfigPath(): string {
+  const userDataPath = app.getPath('userData')
+  return path.join(userDataPath, 'config.json')
+}
+
+// 加载配置
+async function loadConfig(): Promise<any> {
+  try {
+    const configPath = getConfigPath()
+    if (existsSync(configPath)) {
+      const data = await fs.readFile(configPath, 'utf8')
+      return JSON.parse(data)
+    }
+  } catch (error) {
+    console.error('Load config failed:', error)
+  }
+  return {}
+}
+
+// 保存配置
+async function saveConfig(config: any): Promise<void> {
+  try {
+    const configPath = getConfigPath()
+    await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf8')
+  } catch (error) {
+    console.error('Save config failed:', error)
+  }
+}
 
 /**
  * 初始化 AI IPC 处理程序
@@ -43,6 +76,8 @@ let downloadHistory: Array<{
   completedAt: string;
   error?: string;
 }> = [];
+// 下载目录设置
+let downloadDirectory: string = '';
 
 // 创建默认的浏览器请求头
 const defaultHeaders = {
@@ -90,9 +125,9 @@ export function initAiIpc() {
    */
   ipcMain.handle('fetch-civitai-models', async (_event, url, options) => {
     try {
-      console.log('开始获取 Civitai 模型数据');
-      console.log('请求 URL:', url);
-      console.log('请求选项:', JSON.stringify(options, null, 2));
+      console.log('Start fetching Civitai model data');
+      console.log('Request URL:', url);
+      console.log('Request options:', JSON.stringify(options, null, 2));
       
       // 获取代理设置
       const { proxy, useSystemProxy } = options;
@@ -104,7 +139,7 @@ export function initAiIpc() {
       
       // 如果启用了系统代理，则使用系统代理
       if (useSystemProxy) {
-        console.log('使用系统代理');
+        console.log('Using system proxy');
         // Electron的net模块会自动使用系统代理设置
         const request = net.request({
           url: url,
@@ -132,15 +167,15 @@ export function initAiIpc() {
           request.end();
         });
         
-        console.log('系统代理请求响应状态:', response.statusCode);
+        console.log('System proxy request response status:', response.statusCode);
         
         // 解析JSON数据
         let data;
         try {
           data = JSON.parse(response.data);
         } catch (parseError) {
-          console.error('解析响应数据失败:', parseError);
-          throw new Error('响应数据不是有效的JSON格式');
+          console.error('Parse response data failed:', parseError);
+          throw new Error('Response data is not valid JSON format');
         }
         
         return { ok: response.statusCode >= 200 && response.statusCode < 300, data };
@@ -150,7 +185,7 @@ export function initAiIpc() {
       // 1. proxy是一个包含server和enabled属性的对象
       // 2. proxy是一个字符串（代理服务器地址）
       else if ((proxy && proxy.server && proxy.enabled) || (typeof proxy === 'string' && proxy.length > 0)) {
-        console.log('使用自定义代理:', typeof proxy === 'string' ? proxy : proxy.server);
+        console.log('Using custom proxy:', typeof proxy === 'string' ? proxy : proxy.server);
         try {
           // 使用代理发送请求
           // 获取代理服务器地址
@@ -177,19 +212,19 @@ export function initAiIpc() {
           
           clearTimeout(timeoutId);
           
-          console.log('代理请求响应状态:', response.status);
+          console.log('Proxy request response status:', response.status);
           
           // 获取响应数据
           const data = await response.json();
           return { ok: response.ok, data };
         } catch (agentError) {
-          console.error('使用代理失败:', agentError);
-          return { ok: false, error: agentError instanceof Error ? agentError.message : '代理连接失败' };
+          console.error('Use proxy failed:', agentError);
+          return { ok: false, error: agentError instanceof Error ? agentError.message : 'Proxy connection failed' };
         }
       }
       
       // 直接连接（无代理或代理失败时）
-      console.log('发送直接请求...');
+      console.log('Sending direct request...');
       try {
         // 创建一个AbortController用于超时控制
         const controller = new AbortController();
@@ -205,18 +240,18 @@ export function initAiIpc() {
         
         clearTimeout(timeoutId);
         
-        console.log('直接请求响应状态:', response.status);
+        console.log('Direct request response status:', response.status);
         
         // 获取响应数据
         const data = await response.json();
         return { ok: response.ok, data };
       } catch (error) {
-        console.error('直接请求失败:', error);
-        return { ok: false, error: error instanceof Error ? error.message : '直接连接失败' };
+        console.error('Direct request failed:', error);
+        return { ok: false, error: error instanceof Error ? error.message : 'Direct connection failed' };
       }
     } catch (error) {
-      console.error('获取 Civitai 模型数据失败:', error);
-      return { ok: false, error: error instanceof Error ? error.message : '未知错误' };
+      console.error('Fetch Civitai model data failed:', error);
+      return { ok: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   })
 
@@ -226,14 +261,14 @@ export function initAiIpc() {
    */
   ipcMain.handle('download-civitai-model', async (_event, url, filename) => {
     try {
-      console.log('开始下载模型:', url, filename)
+      console.log('Start downloading model:', url, filename)
       
       // 获取全局代理设置
       const { server, enabled, useSystemProxy } = globalProxySettings;
       
       // 如果启用了系统代理，则直接连接（让系统自动处理代理）
       if (useSystemProxy) {
-        console.log('使用系统代理下载模型');
+        console.log('Using system proxy to download model');
         const request = net.request({
           url: url,
           method: 'GET',
@@ -261,16 +296,16 @@ export function initAiIpc() {
         });
         
         if (response.statusCode < 200 || response.statusCode >= 300) {
-          throw new Error(`下载失败: ${response.statusCode} ${response.data}`);
+          throw new Error(`Download failed: ${response.statusCode} ${response.data}`);
         }
         // 这里可以添加实际的文件保存逻辑
         // 例如：将响应内容保存到文件系统
-        console.log('模型下载完成:', filename);
+        console.log('Model download completed:', filename);
         return { success: true };
       }
       // 如果启用了自定义代理，则配置代理
       else if (enabled && server) {
-        console.log('使用自定义代理下载模型:', server);
+        console.log('Using custom proxy to download model:', server);
         try {
           // 使用代理发送请求
           let agent;
@@ -296,20 +331,20 @@ export function initAiIpc() {
           clearTimeout(timeoutId);
           
           if (!response.ok) {
-            throw new Error(`下载失败: ${response.status} ${response.statusText}`);
+            throw new Error(`Download failed: ${response.status} ${response.statusText}`);
           }
           // 这里可以添加实际的文件保存逻辑
           // 例如：将响应内容保存到文件系统
-          console.log('模型下载完成:', filename);
+          console.log('Model download completed:', filename);
           return { success: true };
         } catch (agentError) {
-          console.error('使用代理失败:', agentError);
+          console.error('Use proxy failed:', agentError);
           throw agentError;
         }
       }
       // 直接连接（无代理）
       else {
-        console.log('直接下载模型');
+        console.log('Direct download model');
         try {
           // 创建一个AbortController用于超时控制
           const controller = new AbortController();
@@ -326,20 +361,20 @@ export function initAiIpc() {
           clearTimeout(timeoutId);
           
           if (!response.ok) {
-            throw new Error(`下载失败: ${response.status} ${response.statusText}`);
+            throw new Error(`Download failed: ${response.status} ${response.statusText}`);
           }
           // 这里可以添加实际的文件保存逻辑
           // 例如：将响应内容保存到文件系统
-          console.log('模型下载完成:', filename);
+          console.log('Model download completed:', filename);
           return { success: true };
         } catch (error) {
-          console.error('直接请求失败:', error);
+          console.error('Direct request failed:', error);
           throw error;
         }
       }
     } catch (error) {
-      console.error('下载 Civitai 模型失败:', error)
-      return { success: false, error: error instanceof Error ? error.message : '未知错误' }
+      console.error('Download Civitai model failed:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   })
 
@@ -349,14 +384,14 @@ export function initAiIpc() {
    */
   ipcMain.handle('update-proxy-settings', async (_event, settings) => {
     try {
-      console.log('更新代理设置:', settings)
-      // 保存代理设置到全局变量
+      console.log('Update proxy settings:', settings)
+      // Save proxy settings to global variable
       globalProxySettings = settings;
-      console.log('代理设置更新成功');
+      console.log('Proxy settings updated successfully');
       return { success: true }
     } catch (error) {
-      console.error('更新代理设置失败:', error)
-      return { success: false, error: error instanceof Error ? error.message : '未知错误' }
+      console.error('Update proxy settings failed:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   })
 
@@ -366,7 +401,7 @@ export function initAiIpc() {
    */
   ipcMain.handle('test-proxy-connection', async (_event, proxyServer) => {
     try {
-      console.log('测试代理连接:', proxyServer)
+      console.log('Test proxy connection:', proxyServer)
       
       // 如果提供了代理服务器，则测试自定义代理
       if (proxyServer) {
@@ -394,11 +429,11 @@ export function initAiIpc() {
           
           clearTimeout(timeoutId);
           
-          console.log('自定义代理测试响应状态:', response.status);
+          console.log('Custom proxy test response status:', response.status);
           return { success: response.ok };
         } catch (testError) {
-          console.error('自定义代理测试失败:', testError);
-          return { success: false, error: testError instanceof Error ? testError.message : '连接失败' };
+          console.error('Custom proxy test failed:', testError);
+          return { success: false, error: testError instanceof Error ? testError.message : 'Connection failed' };
         }
       }
       // 如果没有提供代理服务器，则测试系统代理
@@ -408,7 +443,7 @@ export function initAiIpc() {
         
         if (useSystemProxy) {
           try {
-            console.log('测试系统代理连接');
+            console.log('Test system proxy connection');
             
             const request = net.request({
               url: 'https://www.google.com',
@@ -428,21 +463,21 @@ export function initAiIpc() {
               request.end();
             });
             
-            console.log('系统代理测试响应状态:', response.statusCode);
+            console.log('System proxy test response status:', response.statusCode);
             return { success: response.statusCode >= 200 && response.statusCode < 300 };
           } catch (testError) {
-            console.error('系统代理测试失败:', testError);
-            return { success: false, error: testError instanceof Error ? testError.message : '连接失败' };
+            console.error('System proxy test failed:', testError);
+            return { success: false, error: testError instanceof Error ? testError.message : 'Connection failed' };
           }
         } else {
-          // 没有启用任何代理，模拟测试成功
-          console.log('未启用代理，模拟测试成功');
+          // No proxy enabled, simulate test success
+          console.log('No proxy enabled, simulate test success');
           return { success: true };
         }
       }
     } catch (error) {
-      console.error('测试代理连接失败:', error)
-      return { success: false, error: error instanceof Error ? error.message : '未知错误' }
+      console.error('Test proxy connection failed:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   })
   
@@ -452,11 +487,11 @@ export function initAiIpc() {
    */
   ipcMain.handle('get-download-queue', async () => {
     try {
-      console.log('获取下载队列，当前队列长度:', downloadQueue.length);
+      console.log('Get download queue, current queue length:', downloadQueue.length);
       return { success: true, data: downloadQueue };
     } catch (error) {
-      console.error('获取下载队列失败:', error);
-      return { success: false, error: error instanceof Error ? error.message : '未知错误' };
+      console.error('Get download queue failed:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   });
 
@@ -466,13 +501,13 @@ export function initAiIpc() {
    */
   ipcMain.handle('add-to-download-queue', async (_event, modelId: string, modelName: string, downloadUrl: string) => {
     try {
-      console.log('添加模型到下载队列:', { modelId, modelName, downloadUrl });
+      console.log('Add model to download queue:', { modelId, modelName, downloadUrl });
       
       // 检查是否已在队列中
       const existingIndex = downloadQueue.findIndex(item => item.id === modelId);
       if (existingIndex !== -1) {
-        console.log('模型已在下载队列中');
-        return { success: false, error: '模型已在下载队列中' };
+        console.log('Model already in download queue');
+        return { success: false, error: 'Model already in download queue' };
       }
 
       // 添加到队列
@@ -486,12 +521,12 @@ export function initAiIpc() {
       };
 
       downloadQueue.push(downloadItem);
-      console.log('成功添加到下载队列，当前队列长度:', downloadQueue.length);
+      console.log('Successfully added to download queue, current queue length:', downloadQueue.length);
       
       return { success: true, data: downloadItem };
     } catch (error) {
-      console.error('添加到下载队列失败:', error);
-      return { success: false, error: error instanceof Error ? error.message : '未知错误' };
+      console.error('Add to download queue failed:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   });
 
@@ -501,7 +536,7 @@ export function initAiIpc() {
    */
   ipcMain.handle('batch-add-to-download-queue', async (_event, modelIds: string[]) => {
     try {
-      console.log('批量添加模型到下载队列:', modelIds);
+      console.log('Batch add models to download queue:', modelIds);
       
       const addedItems = [];
       const failedItems = [];
@@ -510,14 +545,14 @@ export function initAiIpc() {
         // 检查是否已在队列中
         const existingIndex = downloadQueue.findIndex(item => item.id === modelId);
         if (existingIndex !== -1) {
-          failedItems.push({ id: modelId, reason: '已在下载队列中' });
+          failedItems.push({ id: modelId, reason: 'Already in download queue' });
           continue;
         }
 
         // 添加到队列
         const downloadItem = {
           id: modelId,
-          name: `模型 ${modelId}`,
+          name: `Model ${modelId}`,
           url: '', // 批量添加时暂时没有URL，需要后续获取
           status: '等待中' as const,
           progress: 0,
@@ -528,7 +563,7 @@ export function initAiIpc() {
         addedItems.push(downloadItem);
       }
 
-      console.log(`批量添加完成: 成功 ${addedItems.length} 个，失败 ${failedItems.length} 个`);
+      console.log(`Batch add completed: Success ${addedItems.length}, Failed ${failedItems.length}`);
       
       return {
         success: true,
@@ -539,8 +574,8 @@ export function initAiIpc() {
         }
       };
     } catch (error) {
-      console.error('批量添加到下载队列失败:', error);
-      return { success: false, error: error instanceof Error ? error.message : '未知错误' };
+      console.error('Batch add to download queue failed:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   });
 
@@ -550,15 +585,15 @@ export function initAiIpc() {
    */
   ipcMain.handle('start-download', async (_event, modelId: string) => {
     try {
-      console.log('开始下载模型:', modelId);
+      console.log('Start downloading model:', modelId);
       
       const downloadItem = downloadQueue.find(item => item.id === modelId);
       if (!downloadItem) {
-        return { success: false, error: '未找到指定的下载项' };
+        return { success: false, error: 'Download item not found' };
       }
 
       if (downloadItem.status !== '等待中' && downloadItem.status !== '已暂停') {
-        return { success: false, error: '只能开始等待中或已暂停的下载' };
+        return { success: false, error: 'Can only start waiting or paused downloads' };
       }
 
       // 更新状态
@@ -569,8 +604,8 @@ export function initAiIpc() {
       
       return { success: true, data: downloadItem };
     } catch (error) {
-      console.error('开始下载失败:', error);
-      return { success: false, error: error instanceof Error ? error.message : '未知错误' };
+      console.error('Start download failed:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   });
 
@@ -580,15 +615,15 @@ export function initAiIpc() {
    */
   ipcMain.handle('pause-download', async (_event, modelId: string) => {
     try {
-      console.log('暂停下载模型:', modelId);
+      console.log('Pause download model:', modelId);
       
       const downloadItem = downloadQueue.find(item => item.id === modelId);
       if (!downloadItem) {
-        return { success: false, error: '未找到指定的下载项' };
+        return { success: false, error: 'Download item not found' };
       }
 
       if (downloadItem.status !== '下载中') {
-        return { success: false, error: '只能暂停正在下载的项目' };
+        return { success: false, error: 'Can only pause downloading items' };
       }
 
       // 更新状态
@@ -596,8 +631,8 @@ export function initAiIpc() {
       
       return { success: true, data: downloadItem };
     } catch (error) {
-      console.error('暂停下载失败:', error);
-      return { success: false, error: error instanceof Error ? error.message : '未知错误' };
+      console.error('Pause download failed:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   });
 
@@ -607,11 +642,11 @@ export function initAiIpc() {
    */
   ipcMain.handle('cancel-download', async (_event, modelId: string) => {
     try {
-      console.log('取消下载模型:', modelId);
+      console.log('Cancel download model:', modelId);
       
       const downloadIndex = downloadQueue.findIndex(item => item.id === modelId);
       if (downloadIndex === -1) {
-        return { success: false, error: '未找到指定的下载项' };
+        return { success: false, error: 'Download item not found' };
       }
 
       const downloadItem = downloadQueue[downloadIndex];
@@ -628,8 +663,8 @@ export function initAiIpc() {
       
       return { success: true, data: downloadItem };
     } catch (error) {
-      console.error('取消下载失败:', error);
-      return { success: false, error: error instanceof Error ? error.message : '未知错误' };
+      console.error('Cancel download failed:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   });
 
@@ -639,7 +674,7 @@ export function initAiIpc() {
    */
   ipcMain.handle('get-download-history', async (_event, page: number = 1, pageSize: number = 10) => {
     try {
-      console.log('获取下载历史:', { page, pageSize });
+      console.log('Get download history:', { page, pageSize });
       
       const startIndex = (page - 1) * pageSize;
       const endIndex = startIndex + pageSize;
@@ -656,8 +691,8 @@ export function initAiIpc() {
         }
       };
     } catch (error) {
-      console.error('获取下载历史失败:', error);
-      return { success: false, error: error instanceof Error ? error.message : '未知错误' };
+      console.error('Get download history failed:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   });
 
@@ -667,27 +702,106 @@ export function initAiIpc() {
    */
   ipcMain.handle('clear-download-history', async () => {
     try {
-      console.log('清空下载历史');
+      console.log('Clear download history');
       
       const clearedCount = downloadHistory.length;
       downloadHistory = [];
       
       return { success: true, data: { clearedCount } };
     } catch (error) {
-      console.error('清空下载历史失败:', error);
-      return { success: false, error: error instanceof Error ? error.message : '未知错误' };
+      console.error('Clear download history failed:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   });
 
-  console.log('AI IPC 处理程序初始化完成')
+  /**
+   * 选择下载目录
+   * 渲染进程可以通过此 IPC 调用来选择下载目录
+   */
+  ipcMain.handle('select-download-directory', async () => {
+    try {
+      const { dialog } = await import('electron');
+      const result = await dialog.showOpenDialog({
+        properties: ['openDirectory'],
+        title: 'Select Download Directory',
+        message: 'Please select download directory'
+      });
+      
+      if (!result.canceled && result.filePaths.length > 0) {
+        const selectedPath = result.filePaths[0];
+        downloadDirectory = selectedPath;
+        // 保存到配置文件
+        const config = await loadConfig()
+        config.downloadDirectory = selectedPath
+        await saveConfig(config)
+        console.log('Select download directory:', selectedPath);
+        return { success: true, data: selectedPath };
+      } else {
+        return { success: false, error: 'User cancelled selection' };
+      }
+    } catch (error) {
+      console.error('Select download directory failed:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  });
+
+  /**
+   * 保存下载目录设置
+   * 渲染进程可以通过此 IPC 调用来保存下载目录设置
+   */
+  ipcMain.handle('save-download-directory', async (_event, directory: string) => {
+    try {
+      downloadDirectory = directory;
+      // 保存到配置文件
+      const config = await loadConfig()
+      config.downloadDirectory = directory
+      await saveConfig(config)
+      console.log('Save download directory setting:', directory);
+      return { success: true };
+    } catch (error) {
+      console.error('Save download directory setting failed:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  });
+
+  /**
+   * 获取下载目录设置
+   * 渲染进程可以通过此 IPC 调用来获取下载目录设置
+   */
+  ipcMain.handle('get-download-directory', async () => {
+    try {
+      // 从配置文件加载
+      const config = await loadConfig()
+      if (config.downloadDirectory) {
+        downloadDirectory = config.downloadDirectory
+      }
+      console.log('Get download directory setting:', downloadDirectory);
+      return { success: true, data: downloadDirectory };
+    } catch (error) {
+      console.error('Get download directory setting failed:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  });
 }
+
+// 在初始化时加载配置
+loadConfig().then(config => {
+  if (config.downloadDirectory) {
+    downloadDirectory = config.downloadDirectory
+    console.log('Load download directory setting:', downloadDirectory)
+  }
+}).catch(error => {
+  console.error('Load config failed during initialization:', error)
+})
+
+console.log('AI IPC handler initialization completed')
 
 /**
  * 模拟下载过程
  * 在实际应用中，这里应该实现真实的文件下载逻辑
  */
 function simulateDownload(downloadItem: any) {
-  console.log('开始模拟下载:', downloadItem.name);
+  console.log('Start simulate download:', downloadItem.name);
   
   const downloadInterval = setInterval(() => {
     if (downloadItem.status !== '下载中') {
@@ -710,7 +824,7 @@ function simulateDownload(downloadItem: any) {
         downloadHistory.unshift({ ...downloadItem });
       }
       
-      console.log('下载完成:', downloadItem.name);
+      console.log('Download completed:', downloadItem.name);
       clearInterval(downloadInterval);
     }
   }, 1000);
