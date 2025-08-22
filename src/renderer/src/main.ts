@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2024-12-08 15:34:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-07-25 10:48:56
+ * @LastEditTime: 2025-08-22 19:08:38
  * @FilePath: \EleTs\src\renderer\src\main.ts
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -19,6 +19,10 @@ import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 
+// Ant Design Vue
+import Antd from 'ant-design-vue';
+import 'ant-design-vue/dist/reset.css';
+
 import { router } from './router'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
@@ -33,6 +37,9 @@ pinia.use(piniaPluginPersistedstate)
 // 注册 Element Plus
 app.use(ElementPlus)
 
+// 注册 Ant Design Vue
+app.use(Antd);
+
 // 注册所有图标
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
   app.component(key, component)
@@ -42,7 +49,3 @@ app.use(pinia)
 app.use(router)
 app.use(i18n)
 app.mount('#app')
-
-
-
-
