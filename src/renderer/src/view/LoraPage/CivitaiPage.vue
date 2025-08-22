@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-07-21 16:28:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-22 19:54:45
+ * @LastEditTime: 2025-08-22 20:56:45
  * @FilePath: \EleTs\src\renderer\src\view\LoraPage\CivitaiPage.vue
  * @Description: Civitai模型浏览和下载页面
 -->
@@ -67,6 +67,13 @@ interface CivitaiModel {
       sizeKB: number
       type: string
       downloadUrl: string
+    }>
+    images: Array<{
+      url: string
+      nsfw: boolean
+      width: number
+      height: number
+      type: string
     }>
   }>
 }
@@ -134,6 +141,114 @@ const menuItems: MenuProps['items'] = [
 
 // 表格列定义
 const modelColumns: TableColumnsType = [
+  {
+    title: '预览',
+    dataIndex: 'preview',
+    key: 'preview',
+    width: '10%',
+    customRender: ({ record }: { record: CivitaiModel }) => {
+      const firstVersion = record.modelVersions?.[0]
+      const firstImage = firstVersion?.images?.[0]
+      const imageUrl = firstImage?.url
+      
+      if (!imageUrl) {
+        return h('div', {
+          style: {
+            width: '60px',
+            height: '60px',
+            backgroundColor: '#f0f0f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: '4px',
+            color: '#999',
+            fontSize: '12px'
+          }
+        }, '无图片')
+      }
+      
+      return h('img', {
+        src: imageUrl,
+        alt: record.name,
+        style: {
+          width: '60px',
+          height: '60px',
+          objectFit: 'cover',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          transition: 'transform 0.2s'
+        },
+        onError: (e: Event) => {
+          const target = e.target as HTMLImageElement
+          target.style.display = 'none'
+          // 创建错误占位符
+          const errorPlaceholder = document.createElement('div')
+          errorPlaceholder.style.cssText = 'width: 60px; height: 60px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #999; font-size: 12px; flex-direction: column; gap: 4px;'
+          errorPlaceholder.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+            <span>加载失败</span>
+          `
+          if (target.parentElement) {
+            target.parentElement.appendChild(errorPlaceholder)
+          }
+        },
+        onClick: () => {
+          // 点击图片打开大图预览
+          Modal.info({
+            title: record.name,
+            content: h('div', { style: { textAlign: 'center' } }, [
+              h('img', {
+                src: imageUrl,
+                alt: record.name,
+                style: {
+                  width: '100%',
+                  maxWidth: '500px',
+                  borderRadius: '4px',
+                  marginBottom: '8px'
+                },
+                onError: (e: Event) => {
+                  const target = e.target as HTMLImageElement
+                  target.style.display = 'none'
+                  // 创建错误占位符
+                  const errorPlaceholder = document.createElement('div')
+                  errorPlaceholder.style.cssText = 'width: 100%; max-width: 500px; height: 300px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #999; font-size: 14px; flex-direction: column; gap: 8px; margin: 0 auto;'
+                  errorPlaceholder.innerHTML = `
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                      <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                      <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                    <span>图片加载失败</span>
+                    <span style="font-size: 12px; color: #666;">请检查网络连接或图片链接</span>
+                  `
+                  if (target.parentElement) {
+                    target.parentElement.appendChild(errorPlaceholder)
+                  }
+                }
+              }),
+              h('div', { style: { fontSize: '12px', color: '#666' } }, '点击图片外部关闭')
+            ]),
+            width: 600,
+            centered: true,
+            closable: true,
+            maskClosable: true
+          })
+        },
+        onMouseEnter: (e: Event) => {
+          const target = e.target as HTMLImageElement
+          target.style.transform = 'scale(1.05)'
+        },
+        onMouseLeave: (e: Event) => {
+          const target = e.target as HTMLImageElement
+          target.style.transform = 'scale(1)'
+        }
+      })
+    }
+  },
   {
     title: '模型名称',
     dataIndex: 'name',
@@ -310,6 +425,9 @@ const fetchModels = async (page = 1) => {
       url += '&query=' + encodeURIComponent(searchQuery.value)
     }
     
+    // 添加获取图片的参数
+    url += '&includeImages=true'
+    
     // 构造请求选项
     const options: any = {
       headers: {
@@ -330,7 +448,40 @@ const fetchModels = async (page = 1) => {
     const response = await ipcRenderer.invoke('fetch-civitai-models', url, options)
     
     if (response.ok) {
-      models.value = response.data.items || []
+      // 处理返回的模型数据，确保包含图片信息
+      const items = response.data.items || []
+      models.value = items.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        type: item.type,
+        nsfw: item.nsfw || false,
+        tags: item.tags || [],
+        description: item.description || '',
+        stats: {
+          downloadCount: item.stats?.downloadCount || 0,
+          favoriteCount: item.stats?.favoriteCount || 0,
+          commentCount: item.stats?.commentCount || 0
+        },
+        modelVersions: item.modelVersions?.map((version: any) => ({
+          id: version.id,
+          name: version.name,
+          trainedWords: version.trainedWords || [],
+          baseModel: version.baseModel,
+          files: version.files?.map((file: any) => ({
+            name: file.name,
+            sizeKB: file.sizeKB || 0,
+            type: file.type,
+            downloadUrl: file.downloadUrl
+          })) || [],
+          images: version.images?.map((image: any) => ({
+            url: image.url,
+            nsfw: image.nsfw || false,
+            width: image.width || 0,
+            height: image.height || 0,
+            type: image.type
+          })) || []
+        })) || []
+      }))
       totalModels.value = response.data.metadata?.totalItems || 0
       currentPage.value = page
     } else {
@@ -571,6 +722,63 @@ onMounted(async () => {
   await fetchDownloadQueue()
   await getDownloadDirectory()
   await getProxySettings()
+  
+  // 监听下载进度更新事件
+  ipcRenderer.on('download-progress', (_event, data) => {
+    console.log('收到下载进度更新:', data)
+    // 更新对应下载任务的进度
+    const taskIndex = downloadTasks.value.findIndex(task => task.id === data.taskId)
+    if (taskIndex !== -1) {
+      // 创建新的数组以触发响应式更新
+      const updatedTasks = [...downloadTasks.value]
+      updatedTasks[taskIndex] = {
+        ...updatedTasks[taskIndex],
+        progress: data.progress
+      }
+      downloadTasks.value = updatedTasks
+    }
+  })
+  
+  // 监听下载状态变更事件
+  ipcRenderer.on('download-status-changed', (_event, data) => {
+    console.log('收到下载状态变更:', data)
+    // 更新对应下载任务的状态
+    const taskIndex = downloadTasks.value.findIndex(task => task.id === data.taskId)
+    if (taskIndex !== -1) {
+      // 创建新的数组以触发响应式更新
+      const updatedTasks = [...downloadTasks.value]
+      updatedTasks[taskIndex] = {
+        ...updatedTasks[taskIndex],
+        status: data.status
+      }
+      downloadTasks.value = updatedTasks
+    }
+  })
+  
+  // 监听下载完成事件
+  ipcRenderer.on('download-completed', (_event, data) => {
+    console.log('收到下载完成通知:', data)
+    // 更新对应下载任务的状态为已完成
+    const taskIndex = downloadTasks.value.findIndex(task => task.id === data.taskId)
+    if (taskIndex !== -1) {
+      // 创建新的数组以触发响应式更新
+      const updatedTasks = [...downloadTasks.value]
+      updatedTasks[taskIndex] = {
+        ...updatedTasks[taskIndex],
+        status: '已完成',
+        progress: 100,
+        completedAt: new Date().toISOString()
+      }
+      downloadTasks.value = updatedTasks
+    }
+  })
+  
+  // 监听下载队列更新事件
+  ipcRenderer.on('download-queue-updated', (_event, data) => {
+    console.log('收到下载队列更新:', data)
+    // 重新获取下载队列
+    fetchDownloadQueue()
+  })
 })
 </script>
 
@@ -845,6 +1053,171 @@ onMounted(async () => {
       background: linear-gradient(90deg, #e6f7ff 0%, #b3e0ff 100%);
       border-right: 3px solid #1890ff;
     }
+  }
+}
+
+// 图片预览样式
+.model-preview {
+  &-image {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    border: 2px solid transparent;
+    
+    &:hover {
+      transform: scale(1.08) rotate(1deg);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+      border-color: #1890ff;
+    }
+    
+    &:active {
+      transform: scale(0.95);
+    }
+  }
+  
+  &-placeholder {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 4px;
+    color: #999;
+    font-size: 12px;
+    border: 2px dashed #d9d9d9;
+    transition: all 0.3s ease;
+    
+    &:hover {
+      border-color: #1890ff;
+      color: #1890ff;
+    }
+    
+    svg {
+      width: 20px;
+      height: 20px;
+      opacity: 0.6;
+    }
+  }
+  
+  &-error {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #fff2f0 0%, #fff1f0 100%);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 4px;
+    color: #ff4d4f;
+    font-size: 12px;
+    border: 2px solid #ffccc7;
+    
+    svg {
+      width: 20px;
+      height: 20px;
+      opacity: 0.8;
+    }
+  }
+}
+
+// 大图预览模态框样式
+:deep(.ant-modal-content) {
+  .ant-modal-body {
+    padding: 16px;
+    
+    img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      transition: all 0.3s ease;
+      
+      &:hover {
+        box-shadow: 0 12px 48px rgba(0, 0, 0, 0.3);
+      }
+    }
+  }
+}
+
+// 图片加载动画
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+.model-preview-loading {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: pulse 1.5s ease-in-out infinite;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  &::after {
+    content: '';
+    width: 24px;
+    height: 24px;
+    border: 2px solid #f0f0f0;
+    border-top: 2px solid #1890ff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+// NSFW 图片模糊效果
+.model-preview-nsfw {
+  position: relative;
+  
+  img {
+    filter: blur(8px);
+    transition: filter 0.3s ease;
+    
+    &:hover {
+      filter: blur(0px);
+    }
+  }
+  
+  &::after {
+    content: 'NSFW';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 77, 79, 0.9);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: bold;
+    pointer-events: none;
+    z-index: 1;
   }
 }
 </style>
