@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-07-21 16:28:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-23 19:33:09
+ * @LastEditTime: 2025-08-23 20:01:31
  * @FilePath: \EleTs\src\renderer\src\view\LoraPage\CivitaiPage.vue
  * @Description: Civitai模型浏览和下载页面
 -->
@@ -110,6 +110,10 @@ const errorMessage = ref('')
 const proxyModalVisible = ref(false)
 const directoryModalVisible = ref(false)
 const selectedKey = ref('models')
+const detailModalVisible = ref(false)
+const selectedModel = ref<CivitaiModel | null>(null)
+const previewVisible = ref(false)
+const previewImageUrl = ref('')
 
 // 代理设置表单
 const proxyForm = reactive({
@@ -334,8 +338,10 @@ const modelColumns: TableColumnsType = [
         }, () => '下载'),
         h(Button, {
           type: 'default',
-          style: { marginLeft: '8px' },
-          size: 'small'
+          icon: h(FileSearchOutlined),
+          onClick: () => viewModelDetails(record),
+          size: 'small',
+          style: { marginLeft: '8px' }
         }, () => '详情')
       ])
     }
@@ -1021,6 +1027,196 @@ const clearParsedModels = () => {
   batchDownloadProgress.value = 0
 }
 
+// 查看模型详情
+const viewModelDetails = async (model: CivitaiModel) => {
+  try {
+    // 如果模型信息不完整，则获取完整信息
+    if (!model.modelVersions || model.modelVersions.length === 0) {
+      loading.value = true
+      const url = `https://civitai.com/api/v1/models/${model.id}`
+      
+      // 构造请求选项，包含代理设置
+      const options: any = {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+      
+      // 添加代理设置
+      if (proxyForm.enabled) {
+        options.proxy = {
+          server: proxyForm.server,
+          enabled: true
+        }
+      }
+      options.useSystemProxy = proxyForm.useSystemProxy
+      
+      const response = await ipcRenderer.invoke('fetch-civitai-models', url, options)
+      
+      if (response.ok) {
+        // 更新模型信息
+        const modelData = response.data
+        const updatedModel: CivitaiModel = {
+          ...model,
+          modelVersions: modelData.modelVersions?.map((version: any) => ({
+            id: version.id,
+            name: version.name,
+            trainedWords: version.trainedWords || [],
+            baseModel: version.baseModel,
+            files: version.files?.map((file: any) => ({
+              name: file.name,
+              sizeKB: file.sizeKB || 0,
+              type: file.type,
+              downloadUrl: file.downloadUrl
+            })) || [],
+            images: version.images?.map((image: any) => ({
+              url: image.url,
+              nsfw: image.nsfw || false,
+              width: image.width || 0,
+              height: image.height || 0,
+              type: image.type
+            })) || []
+          })) || []
+        }
+        
+        selectedModel.value = updatedModel
+      } else {
+        Modal.error({
+          title: '获取详情失败',
+          content: response.error || '获取模型详情信息失败'
+        })
+        return
+      }
+    } else {
+      selectedModel.value = model
+    }
+    
+    // 显示详情模态框
+    detailModalVisible.value = true
+  } catch (error) {
+    console.error('获取模型详情失败:', error)
+    Modal.error({
+      title: '获取详情失败',
+      content: '获取模型详情信息时发生错误'
+    })
+  } finally {
+    loading.value = false
+  }
+}
+
+// 下载选中的模型版本
+const downloadModelVersion = async (model: CivitaiModel, version: any, file: any) => {
+  try {
+    // 添加到下载队列
+    const result = await ipcRenderer.invoke('add-to-download-queue', model.id, model.name, file.downloadUrl)
+    
+    if (result.success) {
+      // 获取更新后的下载队列
+      await fetchDownloadQueue()
+      // 显示成功消息
+      Modal.success({
+        title: '添加成功',
+        content: `模型 "${model.name}" 已添加到下载队列`
+      })
+    } else {
+      Modal.error({
+        title: '添加失败',
+        content: result.error || '添加到下载队列失败'
+      })
+    }
+  } catch (error: any) {
+    Modal.error({
+      title: '添加失败',
+      content: error.message || '添加到下载队列时发生错误'
+    })
+  }
+}
+
+// 获取模型类型颜色
+const getModelTypeColor = (type: string): string => {
+  const typeColors: Record<string, string> = {
+    'Checkpoint': 'blue',
+    'LORA': 'green',
+    'LoCon': 'cyan',
+    'TextualInversion': 'purple',
+    'Hypernetwork': 'orange',
+    'AestheticGradient': 'pink',
+    'ControlNet': 'red',
+    'Poses': 'volcano',
+    'Wildcards': 'gold',
+    'Workflows': 'lime'
+  }
+  return typeColors[type] || 'default'
+}
+
+// 格式化文件大小
+const formatFileSize = (sizeKB: number): string => {
+  if (sizeKB < 1024) {
+    return `${sizeKB} KB`
+  } else if (sizeKB < 1024 * 1024) {
+    return `${(sizeKB / 1024).toFixed(2)} MB`
+  } else {
+    return `${(sizeKB / (1024 * 1024)).toFixed(2)} GB`
+  }
+}
+
+// 预览图片
+const previewImage = (imageUrl: string) => {
+  previewImageUrl.value = imageUrl
+  previewVisible.value = true
+}
+
+// 图片预览模态框
+const handlePreviewImage = () => {
+  Modal.info({
+    title: '图片预览',
+    content: h('div', { style: { textAlign: 'center' } }, [
+      h('img', {
+        src: previewImageUrl.value,
+        alt: '预览图片',
+        style: {
+          width: '100%',
+          maxWidth: '800px',
+          borderRadius: '4px',
+          marginBottom: '8px'
+        },
+        onError: (e: Event) => {
+          const target = e.target as HTMLImageElement
+          target.style.display = 'none'
+          // 创建错误占位符
+          const errorPlaceholder = document.createElement('div')
+          errorPlaceholder.style.cssText = 'width: 100%; max-width: 800px; height: 400px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #999; font-size: 14px; flex-direction: column; gap: 8px; margin: 0 auto;'
+          errorPlaceholder.innerHTML = `
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+            <span>图片加载失败</span>
+            <span style="font-size: 12px; color: #666;">请检查网络连接或图片链接</span>
+          `
+          if (target.parentElement) {
+            target.parentElement.appendChild(errorPlaceholder)
+          }
+        }
+      }),
+      h('div', { style: { fontSize: '12px', color: '#666' } }, '点击图片外部关闭')
+    ]),
+    width: 900,
+    centered: true,
+    closable: true,
+    maskClosable: true
+  })
+}
+
+// 监听预览图片状态变化
+const watchPreviewVisible = () => {
+  if (previewVisible.value) {
+    handlePreviewImage()
+    previewVisible.value = false
+  }
+}
+
 // 页面初始化
 onMounted(async () => {
   // 先获取代理设置和下载目录
@@ -1368,6 +1564,161 @@ onMounted(async () => {
       <p>当前下载目录: {{ downloadDirectory || '未设置' }}</p>
       <Button @click="selectDownloadDirectory">选择下载目录</Button>
     </Modal>
+    
+    <!-- 模型详情模态框 -->
+    <Modal
+      v-model:open="detailModalVisible"
+      :title="selectedModel?.name || '模型详情'"
+      width="80%"
+      :footer="null"
+      @cancel="detailModalVisible = false"
+    >
+      <div v-if="selectedModel" class="model-detail">
+        <!-- 基本信息 -->
+        <div class="detail-section">
+          <h3>基本信息</h3>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="label">模型名称:</span>
+              <span class="value">{{ selectedModel.name }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="label">模型类型:</span>
+              <Tag :color="getModelTypeColor(selectedModel.type)">{{ selectedModel.type }}</Tag>
+            </div>
+            <div class="detail-item">
+              <span class="label">NSFW:</span>
+              <Tag :color="selectedModel.nsfw ? 'red' : 'green'">{{ selectedModel.nsfw ? '是' : '否' }}</Tag>
+            </div>
+            <div class="detail-item">
+              <span class="label">下载次数:</span>
+              <span class="value">{{ selectedModel.stats?.downloadCount?.toLocaleString() || 0 }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="label">收藏次数:</span>
+              <span class="value">{{ selectedModel.stats?.favoriteCount?.toLocaleString() || 0 }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="label">评论数:</span>
+              <span class="value">{{ selectedModel.stats?.commentCount?.toLocaleString() || 0 }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 描述信息 -->
+        <div class="detail-section">
+          <h3>描述</h3>
+          <div class="description">
+            {{ selectedModel.description || '暂无描述' }}
+          </div>
+        </div>
+        
+        <!-- 标签 -->
+        <div class="detail-section">
+          <h3>标签</h3>
+          <div class="tags">
+            <Tag
+              v-for="tag in selectedModel.tags"
+              :key="tag"
+              color="blue"
+              style="margin: 2px;"
+            >
+              {{ tag }}
+            </Tag>
+            <span v-if="!selectedModel.tags || selectedModel.tags.length === 0" class="no-data">暂无标签</span>
+          </div>
+        </div>
+        
+        <!-- 模型版本 -->
+        <div class="detail-section">
+          <h3>模型版本</h3>
+          <div v-if="selectedModel.modelVersions && selectedModel.modelVersions.length > 0">
+            <div
+              v-for="(version, versionIndex) in selectedModel.modelVersions"
+              :key="version.id"
+              class="version-item"
+            >
+              <div class="version-header">
+                <h4>{{ version.name || `版本 ${versionIndex + 1}` }}</h4>
+                <div class="version-actions">
+                  <Button
+                    v-if="version.files && version.files.length > 0"
+                    type="primary"
+                    size="small"
+                    @click="downloadModelVersion(selectedModel, version, version.files[0])"
+                  >
+                    <DownloadOutlined />
+                    下载
+                  </Button>
+                </div>
+              </div>
+              
+              <div class="version-info">
+                <div class="version-detail">
+                  <span class="label">基础模型:</span>
+                  <span class="value">{{ version.baseModel || '未知' }}</span>
+                </div>
+                
+                <div v-if="version.trainedWords && version.trainedWords.length > 0" class="version-detail">
+                  <span class="label">训练词:</span>
+                  <div class="trained-words">
+                    <Tag
+                      v-for="word in version.trainedWords.slice(0, 10)"
+                      :key="word"
+                      color="purple"
+                      style="margin: 2px;"
+                    >
+                      {{ word }}
+                    </Tag>
+                    <span v-if="version.trainedWords.length > 10" class="more-words">
+                      等 {{ version.trainedWords.length }} 个词
+                    </span>
+                  </div>
+                </div>
+                
+                <div v-if="version.files && version.files.length > 0" class="version-detail">
+                  <span class="label">文件信息:</span>
+                  <div class="file-info">
+                    <div
+                      v-for="file in version.files"
+                      :key="file.name"
+                      class="file-item"
+                    >
+                      <div class="file-name">{{ file.name }}</div>
+                      <div class="file-size">{{ formatFileSize(file.sizeKB) }}</div>
+                      <div class="file-type">{{ file.type }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- 图片预览 -->
+              <div v-if="version.images && version.images.length > 0" class="version-images">
+                <div class="label">预览图:</div>
+                <div class="image-grid">
+                  <div
+                    v-for="image in version.images.slice(0, 6)"
+                    :key="image.url"
+                    class="image-item"
+                    :class="{ 'nsfw': image.nsfw }"
+                  >
+                    <img
+                      :src="image.url"
+                      :alt="selectedModel.name"
+                      @click="previewImage(image.url)"
+                    />
+                  </div>
+                  <span v-if="version.images.length > 6" class="more-images">
+                    +{{ version.images.length - 6 }} 张
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div v-else class="no-data">暂无版本信息</div>
+        </div>
+      </div>
+    </Modal>
   </div>
 </template>
 
@@ -1628,6 +1979,258 @@ onMounted(async () => {
     font-weight: bold;
     pointer-events: none;
     z-index: 1;
+  }
+}
+
+// 模型详情模态框样式
+.model-detail {
+  .detail-section {
+    margin-bottom: 24px;
+    
+    h3 {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 12px;
+      color: #1890ff;
+      border-bottom: 1px solid #f0f0f0;
+      padding-bottom: 8px;
+    }
+    
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 12px;
+      
+      .detail-item {
+        display: flex;
+        align-items: center;
+        
+        .label {
+          font-weight: 500;
+          margin-right: 8px;
+          color: #666;
+          min-width: 80px;
+        }
+        
+        .value {
+          color: #333;
+        }
+      }
+    }
+    
+    .description {
+      line-height: 1.6;
+      color: #555;
+      background: #f9f9f9;
+      padding: 12px;
+      border-radius: 4px;
+      border-left: 3px solid #1890ff;
+    }
+    
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      
+      .no-data {
+        color: #999;
+        font-style: italic;
+      }
+    }
+    
+    .version-item {
+      border: 1px solid #f0f0f0;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      background: #fafafa;
+      
+      .version-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        
+        h4 {
+          margin: 0;
+          color: #333;
+          font-size: 14px;
+        }
+      }
+      
+      .version-info {
+        .version-detail {
+          margin-bottom: 8px;
+          
+          .label {
+            font-weight: 500;
+            color: #666;
+            margin-right: 8px;
+            display: inline-block;
+            min-width: 80px;
+          }
+          
+          .value {
+            color: #333;
+          }
+          
+          .trained-words {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            
+            .more-words {
+              color: #999;
+              font-size: 12px;
+              margin-left: 4px;
+            }
+          }
+        }
+        
+        .file-info {
+          .file-item {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            background: #fff;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            border: 1px solid #f0f0f0;
+            
+            .file-name {
+              flex: 1;
+              font-weight: 500;
+              color: #333;
+            }
+            
+            .file-size {
+              margin: 0 12px;
+              color: #666;
+              font-size: 12px;
+            }
+            
+            .file-type {
+              background: #f0f0f0;
+              padding: 2px 6px;
+              border-radius: 3px;
+              font-size: 12px;
+              color: #666;
+            }
+          }
+        }
+      }
+      
+      .version-images {
+        margin-top: 12px;
+        
+        .label {
+          font-weight: 500;
+          color: #666;
+          margin-bottom: 8px;
+          display: block;
+        }
+        
+        .image-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+          gap: 8px;
+          
+          .image-item {
+            position: relative;
+            border-radius: 4px;
+            overflow: hidden;
+            aspect-ratio: 1;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            
+            img {
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+              transition: transform 0.2s ease;
+            }
+            
+            &:hover {
+              transform: scale(1.05);
+              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+              
+              img {
+                transform: scale(1.1);
+              }
+            }
+            
+            &.nsfw {
+              img {
+                filter: blur(4px);
+                
+                &:hover {
+                  filter: blur(0);
+                }
+              }
+              
+              &::after {
+                content: 'NSFW';
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(255, 77, 79, 0.9);
+                color: white;
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-size: 10px;
+                font-weight: bold;
+                pointer-events: none;
+              }
+            }
+          }
+          
+          .more-images {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f0f0f0;
+            color: #999;
+            font-size: 12px;
+            border-radius: 4px;
+            aspect-ratio: 1;
+          }
+        }
+      }
+    }
+    
+    .no-data {
+      text-align: center;
+      color: #999;
+      font-style: italic;
+      padding: 16px;
+      background: #f9f9f9;
+      border-radius: 4px;
+    }
+  }
+}
+
+// 详情模态框样式优化
+:deep(.ant-modal-body) {
+  max-height: 70vh;
+  overflow-y: auto;
+  
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+    
+    &:hover {
+      background: #a8a8a8;
+    }
   }
 }
 </style>
