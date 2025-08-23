@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-07-21 16:28:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-23 20:06:05
+ * @LastEditTime: 2025-08-23 20:31:09
  * @FilePath: \EleTs\src\renderer\src\view\LoraPage\CivitaiPage.vue
  * @Description: Civitai模型浏览和下载页面
 -->
@@ -114,6 +114,7 @@ const detailModalVisible = ref(false)
 const selectedModel = ref<CivitaiModel | null>(null)
 const previewVisible = ref(false)
 const previewImageUrl = ref('')
+const modalWidth = ref('80%')
 
 // 代理设置表单
 const proxyForm = reactive({
@@ -1092,6 +1093,7 @@ const viewModelDetails = async (model: CivitaiModel) => {
     }
     
     // 显示详情模态框
+    updateModalWidth()
     detailModalVisible.value = true
   } catch (error) {
     console.error('获取模型详情失败:', error)
@@ -1229,8 +1231,26 @@ const stripHtmlTags = (html: string): string => {
   return tempDiv.textContent || tempDiv.innerText || '';
 }
 
+// 更新模态框宽度
+const updateModalWidth = () => {
+  const windowWidth = window.innerWidth
+  if (windowWidth < 768) {
+    modalWidth.value = '95%'
+  } else if (windowWidth < 1200) {
+    modalWidth.value = '90%'
+  } else {
+    modalWidth.value = '80%'
+  }
+}
+
 // 页面初始化
 onMounted(async () => {
+  // 初始化模态框宽度
+  updateModalWidth()
+  
+  // 添加窗口大小变化监听器
+  window.addEventListener('resize', updateModalWidth)
+  
   // 先获取代理设置和下载目录
   await getProxySettings()
   await getDownloadDirectory()
@@ -1314,7 +1334,7 @@ onMounted(async () => {
         />
       </Sider>
       <Layout>
-        <Content style="padding: 16px; overflow: auto;">
+        <Content style="padding: 16px; height: calc(100vh - 32px); overflow: auto;">
           <div v-if="showModelsPage">
             <Card title="模型浏览器" style="width: 100%;">
               <div class="search-section">
@@ -1354,12 +1374,12 @@ onMounted(async () => {
               
               <div class="models-section">
                 <Spin :spinning="loading">
-                  <Table 
-                    :columns="modelColumns" 
-                    :data-source="models" 
-                    :pagination="false" 
+                  <Table
+                    :columns="modelColumns"
+                    :data-source="models"
+                    :pagination="false"
                     rowKey="id"
-                    :scroll="{ y: 400 }"
+                    :scroll="{ y: 'calc(100vh - 280px)' }"
                   />
                 </Spin>
                 
@@ -1482,12 +1502,12 @@ onMounted(async () => {
           
           <div v-if="showDownloadsPage">
             <Card title="下载队列" style="width: 100%;">
-              <Table 
-                :columns="downloadColumns" 
-                :data-source="downloadTasks" 
-                :pagination="false" 
+              <Table
+                :columns="downloadColumns"
+                :data-source="downloadTasks"
+                :pagination="false"
                 rowKey="id"
-                :scroll="{ y: 500 }"
+                :scroll="{ y: 'calc(100vh - 280px)' }"
               />
             </Card>
           </div>
@@ -1581,8 +1601,9 @@ onMounted(async () => {
     <Modal
       v-model:open="detailModalVisible"
       :title="selectedModel?.name || '模型详情'"
-      width="80%"
+      :width="modalWidth"
       :footer="null"
+      :style="{ top: '20px' }"
       @cancel="detailModalVisible = false"
     >
       <div v-if="selectedModel" class="model-detail">
