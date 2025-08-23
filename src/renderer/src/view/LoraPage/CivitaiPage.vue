@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-07-21 16:28:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-23 21:16:37
+ * @LastEditTime: 2025-08-23 21:33:39
  * @FilePath: \EleTs\src\renderer\src\view\LoraPage\CivitaiPage.vue
  * @Description: Civitai模型浏览和下载页面
 -->
@@ -1321,7 +1321,7 @@ onMounted(async () => {
 <template>
   <div class="civitai-page">
     <Layout class="flex " style="height: 100%;">
-      <Sider width="240" style="background: linear-gradient(180deg, #4f46e5 0%, #7c3aed 100%);">
+      <Sider width="240" style="background: linear-gradient(180deg, #4f46e5 0%, #1890ff 100%); border-radius: 16px 0 0 16px;">
         <div class="logo" style="padding: 24px; text-align: center; border-bottom: 1px solid rgba(255, 255, 255, 0.15);">
           <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
             <div style="width: 48px; height: 48px; background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(10px); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-right: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);">
@@ -1783,13 +1783,14 @@ onMounted(async () => {
 
 // 全局卡片样式优化
 :deep(.ant-card) {
+  // background: linear-gradient(180deg, #4f46e5 0%, #1890ff 100%);
+  border-radius:  0 16px 16px 0 ;
   border: none;
   box-shadow: none;
   overflow: hidden;
-  border-radius: 0;
   
   .ant-card-head {
-    background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%);
+    background: linear-gradient(90deg, #4f46e5 0%, #1890ff 100%);
     color: white;
     border-bottom: none;
     padding: 16px 20px;
@@ -1948,20 +1949,7 @@ onMounted(async () => {
   text-align: right;
 }
 
-:deep(.ant-card) {
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  
-  .ant-card-head {
-    background: linear-gradient(90deg, #1890ff 0%, #40a9ff 100%);
-    color: white;
-    border-radius: 8px 8px 0 0;
-    
-    .ant-card-head-title {
-      color: white;
-    }
-  }
-}
+
 
 :deep(.ant-table-wrapper) {
   .ant-table {
