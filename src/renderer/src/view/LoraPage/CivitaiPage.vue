@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-07-21 16:28:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-23 20:35:35
+ * @LastEditTime: 2025-08-23 20:58:47
  * @FilePath: \EleTs\src\renderer\src\view\LoraPage\CivitaiPage.vue
  * @Description: Civitai模型浏览和下载页面
 -->
@@ -1321,20 +1321,30 @@ onMounted(async () => {
 <template>
   <div class="civitai-page">
     <Layout style="height: 100%;">
-      <Sider width="200" style="background: #fff; border-right: 1px solid #f0f0f0;">
-        <div class="logo">
-          <h2 style="padding: 16px; text-align: center; margin: 0; color: #1890ff;">Civitai</h2>
+      <Sider width="240" style="background: linear-gradient(180deg, #4f46e5 0%, #7c3aed 100%);">
+        <div class="logo" style="padding: 24px; text-align: center; border-bottom: 1px solid rgba(255, 255, 255, 0.15);">
+          <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+            <div style="width: 48px; height: 48px; background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(10px); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-right: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);">
+              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: white;">
+                <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
+                <path d="M12 22s-8-4-8-10V7l8-4 8 4v5c0 6-8 10-8 10z"/>
+              </svg>
+            </div>
+            <h2 style="margin: 0; color: white; font-size: 22px; font-weight: 700;">Civitai</h2>
+          </div>
+          <p style="margin: 0; color: rgba(255, 255, 255, 0.8); font-size: 13px;">AI模型管理平台</p>
         </div>
         <Menu
           :selectedKeys="[selectedKey]"
           @update:selectedKeys="selectedKey = $event[0] as string"
           mode="inline"
           :items="menuItems"
-          style="border: none;"
+          style="border: none; background: transparent; color: rgba(255, 255, 255, 0.9); padding: 16px 0;"
+          :class="'custom-menu'"
         />
       </Sider>
       <Layout>
-        <Content style="padding: 16px; height: calc(100vh - 32px); overflow: auto;">
+        <Content style="height: calc(100vh - 64px);">
           <div v-if="showModelsPage" class="full-height-container">
             <Card title="模型浏览器" style="width: 100%; height: 100%;">
               <div class="search-section">
@@ -1379,7 +1389,6 @@ onMounted(async () => {
                     :data-source="models"
                     :pagination="false"
                     rowKey="id"
-                    :scroll="{ y: 'calc(100vh - 280px)' }"
                   />
                 </Spin>
                 
@@ -1759,7 +1768,151 @@ onMounted(async () => {
 .civitai-page {
   height: 100%;
   overflow: hidden;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4edf9 100%);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+// 页面容器优化
+:deep(.ant-layout) {
+  background: transparent;
+}
+
+// 页面内容区域优化
+:deep(.ant-layout-content) {
+  overflow: hidden;
+}
+
+// 全局卡片样式优化
+:deep(.ant-card) {
+  border: none;
+  box-shadow: none;
+  overflow: hidden;
+  
+  .ant-card-head {
+    background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%);
+    color: white;
+    border-bottom: none;
+    padding: 16px 20px;
+    
+    .ant-card-head-title {
+      color: white;
+      font-weight: 600;
+      font-size: 16px;
+    }
+  }
+  
+  .ant-card-body {
+    padding: 16px;
+    background: transparent;
+  }
+}
+
+// 按钮样式优化
+:deep(.ant-btn-primary) {
+  background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%);
+  border: none;
+  border-radius: 10px;
+  height: 42px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  &:hover, &:focus {
+    background: linear-gradient(90deg, #4338ca 0%, #6d28d9 100%);
+    box-shadow: 0 6px 16px rgba(79, 70, 229, 0.4);
+    transform: translateY(-2px);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+// 默认按钮样式优化
+:deep(.ant-btn) {
+  border-radius: 10px;
+  height: 42px;
+  font-weight: 500;
+  border: 1px solid #e2e8f0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  &:hover, &:focus {
+    border-color: #c7d2fe;
+    color: #4f46e5;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.15);
+    transform: translateY(-2px);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+// 输入框样式优化
+:deep(.ant-input) {
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.3s ease;
+  
+  &:focus {
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+  }
+}
+
+// 标签样式优化
+:deep(.ant-tag) {
+  border-radius: 12px;
+  padding: 4px 12px;
+  font-weight: 500;
+  font-size: 13px;
+  border: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+// 表格样式优化
+:deep(.ant-table) {
+  .ant-table-thead > tr > th {
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 600;
+    border-bottom: 2px solid #e2e8f0;
+  }
+  
+  .ant-table-tbody > tr:hover > td {
+    background: #f1f5f9;
+  }
+  
+  .ant-table-tbody > tr > td {
+    border-bottom: 1px solid #e2e8f0;
+  }
+}
+
+// 分页样式优化
+:deep(.ant-pagination) {
+  .ant-pagination-item {
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    
+    &.ant-pagination-item-active {
+      background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%);
+      border-color: transparent;
+      
+      a {
+        color: white;
+      }
+    }
+  }
+  
+  .ant-pagination-prev,
+  .ant-pagination-next {
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    
+    &:hover {
+      border-color: #4f46e5;
+      color: #4f46e5;
+    }
+  }
 }
 
 .logo {
@@ -1832,20 +1985,49 @@ onMounted(async () => {
 }
 
 :deep(.ant-layout-sider) {
-  background: #fff;
+  background: transparent;
 }
 
-:deep(.ant-menu) {
-  border-right: none;
-  
-  .ant-menu-item {
-    margin: 0;
-    height: 48px;
-    line-height: 48px;
+// 自定义菜单样式
+.custom-menu {
+  :deep(.ant-menu-item) {
+    margin: 6px 16px;
+    height: 52px;
+    line-height: 52px;
+    border-radius: 12px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 500;
+    
+    &:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: white;
+      transform: translateX(6px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
     
     &.ant-menu-item-selected {
-      background: linear-gradient(90deg, #e6f7ff 0%, #b3e0ff 100%);
-      border-right: 3px solid #1890ff;
+      background: rgba(255, 255, 255, 0.25);
+      backdrop-filter: blur(10px);
+      color: white;
+      font-weight: 600;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+      border-left: 4px solid white;
+      
+      &::after {
+        display: none;
+      }
+      
+      .ant-menu-item-icon {
+        color: white;
+      }
+    }
+    
+    .ant-menu-item-icon {
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 20px;
+      margin-right: 14px;
+      transition: all 0.3s ease;
     }
   }
 }
@@ -2018,15 +2200,27 @@ onMounted(async () => {
 // 模型详情模态框样式
 .model-detail {
   .detail-section {
-    margin-bottom: 24px;
+    margin-bottom: 28px;
     
     h3 {
-      font-size: 16px;
-      font-weight: bold;
-      margin-bottom: 12px;
-      color: #1890ff;
-      border-bottom: 1px solid #f0f0f0;
-      padding-bottom: 8px;
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #4f46e5;
+      border-bottom: 2px solid #e0e7ff;
+      padding-bottom: 10px;
+      display: flex;
+      align-items: center;
+      
+      &::before {
+        content: '';
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        background: linear-gradient(135deg, #4f46e5, #7c3aed);
+        border-radius: 50%;
+        margin-right: 10px;
+      }
     }
     
     .detail-grid {
@@ -2052,12 +2246,14 @@ onMounted(async () => {
     }
     
     .description {
-      line-height: 1.6;
-      color: #555;
-      background: #f9f9f9;
-      padding: 12px;
-      border-radius: 4px;
-      border-left: 3px solid #1890ff;
+      line-height: 1.7;
+      color: #4b5563;
+      background: linear-gradient(to right, #f0f4ff, #fafbff);
+      padding: 16px;
+      border-radius: 10px;
+      border-left: 4px solid #4f46e5;
+      box-shadow: 0 2px 8px rgba(79, 70, 229, 0.08);
+      font-size: 14px;
     }
     
     .tags {
@@ -2279,7 +2475,7 @@ onMounted(async () => {
     
     .ant-card-body {
       flex: 1;
-      overflow: auto;
+      overflow: hidden;
     }
   }
 }
