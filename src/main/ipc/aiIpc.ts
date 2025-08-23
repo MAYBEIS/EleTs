@@ -12,6 +12,35 @@ import { HttpsProxyAgent } from 'https-proxy-agent'
 import { HttpProxyAgent } from 'http-proxy-agent'
 import { ModelDownloader, ProxySettings } from '../utils/modelDown'
 
+// 重试函数
+async function retryRequest<T>(
+  requestFn: () => Promise<T>,
+  maxRetries: number = 3,
+  delayMs: number = 1000
+): Promise<T> {
+  let lastError: Error;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await requestFn();
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      
+      // 如果是AbortError且不是最后一次尝试，则等待后重试
+      if ((lastError.name === 'AbortError' || lastError.message.includes('aborted')) && attempt < maxRetries) {
+        console.warn(`Request attempt ${attempt} failed, retrying in ${delayMs}ms...`, lastError.message);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        // 指数退避
+        delayMs *= 2;
+      } else {
+        throw lastError;
+      }
+    }
+  }
+  
+  throw lastError!;
+}
+
 // 获取配置文件路径
 function getConfigPath(): string {
   const userDataPath = app.getPath('userData')
@@ -245,18 +274,47 @@ export function initAiIpc() {
           
           // 创建一个AbortController用于超时控制
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+          const timeoutId = setTimeout(() => {
+            controller.abort();
+            console.log('Proxy request timeout after 30 seconds');
+          }, 30000); // 增加到30秒超时
           
           // 使用node-fetch通过代理发送请求
           const nodeFetch = (await import('node-fetch')).default;
-          const response = await nodeFetch(url, {
-            method: 'GET',
-            headers: headers,
-            agent: agent,
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
+          let response;
+          try {
+            response = await retryRequest(async () => {
+              // 为每次重试创建新的AbortController
+              const retryController = new AbortController();
+              const retryTimeoutId = setTimeout(() => {
+                retryController.abort();
+                console.log('Proxy request timeout after 30 seconds');
+              }, 30000);
+              
+              try {
+                const result = await nodeFetch(url, {
+                  method: 'GET',
+                  headers: headers,
+                  agent: agent,
+                  signal: retryController.signal
+                });
+                clearTimeout(retryTimeoutId);
+                return result;
+              } catch (fetchError) {
+                clearTimeout(retryTimeoutId);
+                // 检查是否是AbortError
+                if (fetchError.name === 'AbortError' || fetchError.message.includes('aborted')) {
+                  console.warn('Proxy request was aborted:', fetchError.message);
+                  throw new Error('Proxy request timeout or aborted');
+                }
+                throw fetchError;
+              }
+            }, 3, 2000); // 最多重试3次，初始延迟2秒
+          } catch (fetchError) {
+            throw fetchError;
+          } finally {
+            clearTimeout(timeoutId);
+          }
           
           console.log('Proxy request response status:', response.status);
           
@@ -274,17 +332,46 @@ export function initAiIpc() {
       try {
         // 创建一个AbortController用于超时控制
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+        const timeoutId = setTimeout(() => {
+          controller.abort();
+          console.log('Direct request timeout after 30 seconds');
+        }, 30000); // 增加到30秒超时
         
         // 使用node-fetch直接发送请求
         const nodeFetch = (await import('node-fetch')).default;
-        const response = await nodeFetch(url, {
-          method: 'GET',
-          headers: headers,
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
+        let response;
+        try {
+          response = await retryRequest(async () => {
+            // 为每次重试创建新的AbortController
+            const retryController = new AbortController();
+            const retryTimeoutId = setTimeout(() => {
+              retryController.abort();
+              console.log('Direct request timeout after 30 seconds');
+            }, 30000);
+            
+            try {
+              const result = await nodeFetch(url, {
+                method: 'GET',
+                headers: headers,
+                signal: retryController.signal
+              });
+              clearTimeout(retryTimeoutId);
+              return result;
+            } catch (fetchError) {
+              clearTimeout(retryTimeoutId);
+              // 检查是否是AbortError
+              if (fetchError.name === 'AbortError' || fetchError.message.includes('aborted')) {
+                console.warn('Direct request was aborted:', fetchError.message);
+                throw new Error('Direct request timeout or aborted');
+              }
+              throw fetchError;
+            }
+          }, 3, 2000); // 最多重试3次，初始延迟2秒
+        } catch (fetchError) {
+          throw fetchError;
+        } finally {
+          clearTimeout(timeoutId);
+        }
         
         console.log('Direct request response status:', response.status);
         
@@ -436,18 +523,47 @@ export function initAiIpc() {
           
           // 创建一个AbortController用于超时控制
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超时
+          const timeoutId = setTimeout(() => {
+            controller.abort();
+            console.log('Proxy test request timeout after 15 seconds');
+          }, 15000); // 增加到15秒超时
           
           // 使用node-fetch通过代理发送请求
           const nodeFetch = (await import('node-fetch')).default;
-          const response = await nodeFetch('https://www.google.com', {
-            method: 'GET',
-            headers: defaultHeaders,
-            agent: agent,
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
+          let response;
+          try {
+            response = await retryRequest(async () => {
+              // 为每次重试创建新的AbortController
+              const retryController = new AbortController();
+              const retryTimeoutId = setTimeout(() => {
+                retryController.abort();
+                console.log('Proxy test request timeout after 15 seconds');
+              }, 15000);
+              
+              try {
+                const result = await nodeFetch('https://www.google.com', {
+                  method: 'GET',
+                  headers: defaultHeaders,
+                  agent: agent,
+                  signal: retryController.signal
+                });
+                clearTimeout(retryTimeoutId);
+                return result;
+              } catch (fetchError) {
+                clearTimeout(retryTimeoutId);
+                // 检查是否是AbortError
+                if (fetchError.name === 'AbortError' || fetchError.message.includes('aborted')) {
+                  console.warn('Proxy test request was aborted:', fetchError.message);
+                  throw new Error('Proxy test request timeout or aborted');
+                }
+                throw fetchError;
+              }
+            }, 2, 1000); // 最多重试2次，初始延迟1秒
+          } catch (fetchError) {
+            throw fetchError;
+          } finally {
+            clearTimeout(timeoutId);
+          }
           
           console.log('Custom proxy test response status:', response.status);
           return { success: response.ok };
@@ -637,8 +753,91 @@ export function initAiIpc() {
         });
       }
       
-      // 模拟下载过程（实际应用中应该实现真实的下载逻辑）
-      simulateDownload(downloadItem);
+      // 检查ModelDownloader是否已初始化
+      if (!modelDownloader) {
+        throw new Error('ModelDownloader not initialized');
+      }
+      
+      // 更新代理设置
+      const proxySettings: ProxySettings = {
+        server: globalProxySettings?.server,
+        enabled: globalProxySettings?.enabled,
+        useSystemProxy: globalProxySettings?.useSystemProxy
+      };
+      
+      modelDownloader.updateConfig({
+        downloadDirectory: downloadDirectory,
+        proxySettings: proxySettings
+      });
+      
+      // 执行真实下载
+      const success = await modelDownloader.downloadModel(
+        modelId,
+        downloadItem.url,
+        downloadItem.name,
+        // 进度回调
+        (progress, downloadedSize, totalSize) => {
+          console.log(`Download progress: ${progress}% (${downloadedSize}/${totalSize})`);
+          // 更新下载项进度
+          const item = downloadQueue.find(item => item.id === modelId);
+          if (item) {
+            item.progress = progress;
+          }
+          // 通过IPC发送进度更新到渲染进程
+          if (mainWindow) {
+            mainWindow.webContents.send('download-progress', {
+              taskId: modelId,
+              progress,
+              downloadedSize,
+              totalSize
+            });
+          }
+        },
+        // 完成回调
+        (success, filePath, error) => {
+          console.log('Download completed:', { success, filePath, error });
+          // 更新下载项状态
+          const item = downloadQueue.find(item => item.id === modelId);
+          if (item) {
+            if (success) {
+              item.status = '已完成';
+              item.progress = 100;
+              item.completedAt = new Date().toISOString();
+              
+              // 从队列中移除并添加到历史记录
+              const index = downloadQueue.findIndex(item => item.id === modelId);
+              if (index !== -1) {
+                downloadQueue.splice(index, 1);
+                downloadHistory.unshift({ ...item, status: '已完成' as const, completedAt: item.completedAt! });
+              }
+            } else {
+              item.status = '失败';
+              item.error = error;
+            }
+          }
+          
+          // 通过IPC发送完成通知到渲染进程
+          if (mainWindow) {
+            mainWindow.webContents.send('download-completed', {
+              taskId: modelId,
+              success,
+              filePath,
+              error
+            });
+            
+            // 通知UI队列已更新
+            mainWindow.webContents.send('download-queue-updated', {
+              queue: downloadQueue,
+              completed: success ? [item] : [],
+              failed: success ? [] : [item]
+            });
+          }
+        }
+      );
+      
+      if (!success) {
+        throw new Error('Failed to start download');
+      }
       
       return { success: true, data: downloadItem };
     } catch (error) {
@@ -743,6 +942,23 @@ export function initAiIpc() {
       const successCount = { value: 0 };
       const failCount = { value: 0 };
       
+      // 检查ModelDownloader是否已初始化
+      if (!modelDownloader) {
+        throw new Error('ModelDownloader not initialized');
+      }
+      
+      // 更新代理设置
+      const proxySettings: ProxySettings = {
+        server: globalProxySettings?.server,
+        enabled: globalProxySettings?.enabled,
+        useSystemProxy: globalProxySettings?.useSystemProxy
+      };
+      
+      modelDownloader.updateConfig({
+        downloadDirectory: downloadDirectory,
+        proxySettings: proxySettings
+      });
+      
       // 使用Promise.allSettled来并行处理所有下载
       const promises = modelIds.map(async (modelId) => {
         try {
@@ -771,11 +987,78 @@ export function initAiIpc() {
             });
           }
           
-          // 模拟下载过程
-          simulateDownload(downloadItem);
+          // 执行真实下载
+          const success = await modelDownloader.downloadModel(
+            modelId,
+            downloadItem.url,
+            downloadItem.name,
+            // 进度回调
+            (progress, downloadedSize, totalSize) => {
+              console.log(`Download progress: ${progress}% (${downloadedSize}/${totalSize})`);
+              // 更新下载项进度
+              const item = downloadQueue.find(item => item.id === modelId);
+              if (item) {
+                item.progress = progress;
+              }
+              // 通过IPC发送进度更新到渲染进程
+              if (mainWindow) {
+                mainWindow.webContents.send('download-progress', {
+                  taskId: modelId,
+                  progress,
+                  downloadedSize,
+                  totalSize
+                });
+              }
+            },
+            // 完成回调
+            (success, filePath, error) => {
+              console.log('Download completed:', { success, filePath, error });
+              // 更新下载项状态
+              const item = downloadQueue.find(item => item.id === modelId);
+              if (item) {
+                if (success) {
+                  item.status = '已完成';
+                  item.progress = 100;
+                  item.completedAt = new Date().toISOString();
+                  
+                  // 从队列中移除并添加到历史记录
+                  const index = downloadQueue.findIndex(item => item.id === modelId);
+                  if (index !== -1) {
+                    downloadQueue.splice(index, 1);
+                    downloadHistory.unshift({ ...item, status: '已完成' as const, completedAt: item.completedAt! });
+                  }
+                } else {
+                  item.status = '失败';
+                  item.error = error;
+                }
+              }
+              
+              // 通过IPC发送完成通知到渲染进程
+              if (mainWindow) {
+                mainWindow.webContents.send('download-completed', {
+                  taskId: modelId,
+                  success,
+                  filePath,
+                  error
+                });
+                
+                // 通知UI队列已更新
+                mainWindow.webContents.send('download-queue-updated', {
+                  queue: downloadQueue,
+                  completed: success ? [item] : [],
+                  failed: success ? [] : [item]
+                });
+              }
+            }
+          );
           
-          successCount.value++;
-          results.push({ id: modelId, success: true, data: downloadItem });
+          if (success) {
+            successCount.value++;
+            results.push({ id: modelId, success: true, data: downloadItem });
+          } else {
+            failCount.value++;
+            results.push({ id: modelId, success: false, error: 'Failed to start download' });
+          }
         } catch (error) {
           failCount.value++;
           results.push({

@@ -12,6 +12,35 @@ import { pipeline, Transform } from 'stream';
 import { promisify } from 'util';
 import { createWriteStream } from 'fs';
 
+// 重试函数
+async function retryRequest<T>(
+  requestFn: () => Promise<T>,
+  maxRetries: number = 3,
+  delayMs: number = 1000
+): Promise<T> {
+  let lastError: Error;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await requestFn();
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      
+      // 如果是AbortError且不是最后一次尝试，则等待后重试
+      if ((lastError.name === 'AbortError' || lastError.message.includes('aborted')) && attempt < maxRetries) {
+        console.warn(`Request attempt ${attempt} failed, retrying in ${delayMs}ms...`, lastError.message);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        // 指数退避
+        delayMs *= 2;
+      } else {
+        throw lastError;
+      }
+    }
+  }
+  
+  throw lastError!;
+}
+
 // 将pipeline转换为Promise版本
 const pipelineAsync = promisify(pipeline);
 
@@ -346,14 +375,50 @@ export class ModelDownloader {
         agent = new HttpProxyAgent(proxySettings.server);
       }
       
+      // 创建一个AbortController用于超时控制
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        console.log('Proxy download request timeout after 60 seconds');
+      }, 60000); // 60秒超时
+      
       // 发起请求
-      const response = await nodeFetch(url, {
-        method: 'GET',
-        agent: agent,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-      });
+      let response;
+      try {
+        response = await retryRequest(async () => {
+          // 为每次重试创建新的AbortController
+          const retryController = new AbortController();
+          const retryTimeoutId = setTimeout(() => {
+            retryController.abort();
+            console.log('Proxy download request timeout after 60 seconds');
+          }, 60000);
+          
+          try {
+            const result = await nodeFetch(url, {
+              method: 'GET',
+              agent: agent,
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+              },
+              signal: retryController.signal
+            });
+            clearTimeout(retryTimeoutId);
+            return result;
+          } catch (fetchError) {
+            clearTimeout(retryTimeoutId);
+            // 检查是否是AbortError
+            if (fetchError.name === 'AbortError' || fetchError.message.includes('aborted')) {
+              console.warn('Proxy download request was aborted:', fetchError.message);
+              throw new Error('Proxy download request timeout or aborted');
+            }
+            throw fetchError;
+          }
+        }, 2, 3000); // 最多重试2次，初始延迟3秒
+      } catch (fetchError) {
+        throw fetchError;
+      } finally {
+        clearTimeout(timeoutId);
+      }
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -732,12 +797,48 @@ export class ModelDownloader {
         headers['Range'] = `bytes=${rangeStart}-`;
       }
       
+      // 创建一个AbortController用于超时控制
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        console.log('Proxy resume download request timeout after 60 seconds');
+      }, 60000); // 60秒超时
+      
       // 发起请求
-      const response = await nodeFetch(url, {
-        method: 'GET',
-        agent: agent,
-        headers: headers
-      });
+      let response;
+      try {
+        response = await retryRequest(async () => {
+          // 为每次重试创建新的AbortController
+          const retryController = new AbortController();
+          const retryTimeoutId = setTimeout(() => {
+            retryController.abort();
+            console.log('Proxy resume download request timeout after 60 seconds');
+          }, 60000);
+          
+          try {
+            const result = await nodeFetch(url, {
+              method: 'GET',
+              agent: agent,
+              headers: headers,
+              signal: retryController.signal
+            });
+            clearTimeout(retryTimeoutId);
+            return result;
+          } catch (fetchError) {
+            clearTimeout(retryTimeoutId);
+            // 检查是否是AbortError
+            if (fetchError.name === 'AbortError' || fetchError.message.includes('aborted')) {
+              console.warn('Proxy resume download request was aborted:', fetchError.message);
+              throw new Error('Proxy resume download request timeout or aborted');
+            }
+            throw fetchError;
+          }
+        }, 2, 3000); // 最多重试2次，初始延迟3秒
+      } catch (fetchError) {
+        throw fetchError;
+      } finally {
+        clearTimeout(timeoutId);
+      }
       
       if (!response.ok && response.status !== 206 && response.status !== 416) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);

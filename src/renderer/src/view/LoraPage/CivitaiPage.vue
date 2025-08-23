@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-07-21 16:28:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-22 21:09:32
+ * @LastEditTime: 2025-08-23 18:47:38
  * @FilePath: \EleTs\src\renderer\src\view\LoraPage\CivitaiPage.vue
  * @Description: Civitai模型浏览和下载页面
 -->
@@ -795,35 +795,76 @@ const parseAndFetchModelInfo = async () => {
       return
     }
     
-    // 获取每个模型的详细信息
-    for (const item of parsedList) {
-      try {
-        const url = `https://civitai.com/api/v1/models/${item.id}`
-        const response = await ipcRenderer.invoke('fetch-civitai-models', url, {})
-        
-        if (response.ok) {
-          const modelData = response.data
-          parsedModelList.value.push({
-            id: item.id,
-            name: modelData.name || item.name,
-            url: item.url
-          })
-        } else {
+    // 获取每个模型的详细信息，使用并发控制避免资源竞争
+    const maxConcurrentRequests = 3; // 最大并发请求数
+    const chunks = [];
+    for (let i = 0; i < parsedList.length; i += maxConcurrentRequests) {
+      chunks.push(parsedList.slice(i, i + maxConcurrentRequests));
+    }
+    
+    for (const chunk of chunks) {
+      const promises = chunk.map(async (item) => {
+        try {
+          const url = `https://civitai.com/api/v1/models/${item.id}`
+          // 构造请求选项，包含代理设置
+          const options: any = {
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+          
+          // 添加代理设置
+          if (proxyForm.enabled) {
+            options.proxy = {
+              server: proxyForm.server,
+              enabled: true
+            }
+          }
+          options.useSystemProxy = proxyForm.useSystemProxy
+          
+          const response = await ipcRenderer.invoke('fetch-civitai-models', url, options)
+          
+          if (response.ok) {
+            const modelData = response.data
+            return {
+              id: item.id,
+              name: modelData.name || item.name,
+              url: item.url
+            }
+          } else {
+            // 如果获取失败，使用默认名称
+            console.warn(`获取模型 ${item.id} 信息失败: ${response.error}`)
+            return {
+              id: item.id,
+              name: item.name,
+              url: item.url
+            }
+          }
+        } catch (error) {
+          console.error(`获取模型 ${item.id} 信息失败:`, error)
           // 如果获取失败，使用默认名称
-          parsedModelList.value.push({
+          return {
             id: item.id,
             name: item.name,
             url: item.url
-          })
+          }
         }
-      } catch (error) {
-        console.error(`获取模型 ${item.id} 信息失败:`, error)
-        // 如果获取失败，使用默认名称
-        parsedModelList.value.push({
-          id: item.id,
-          name: item.name,
-          url: item.url
-        })
+      });
+      
+      try {
+        const results = await Promise.allSettled(promises);
+        results.forEach(result => {
+          if (result.status === 'fulfilled' && result.value) {
+            parsedModelList.value.push(result.value);
+          }
+        });
+        
+        // 在每个批次之间添加延迟，避免请求过于频繁
+        if (chunks.indexOf(chunk) < chunks.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000)); // 1秒延迟
+        }
+      } catch (batchError) {
+        console.error('批量处理模型信息失败:', batchError);
       }
     }
     
@@ -860,44 +901,95 @@ const batchAddToDownloadQueue = async () => {
     let successCount = 0
     let failCount = 0
     
-    for (let i = 0; i < parsedModelList.value.length; i++) {
-      const model = parsedModelList.value[i]
-      
-      try {
-        // 获取模型的下载URL
-        const modelUrl = `https://civitai.com/api/v1/models/${model.id}`
-        const response = await ipcRenderer.invoke('fetch-civitai-models', modelUrl, {})
-        
-        if (response.ok) {
-          const modelData = response.data
-          const version = modelData.modelVersions?.[0]
-          const file = version?.files?.[0]
+    // 使用并发控制避免资源竞争
+    const maxConcurrentRequests = 2; // 最大并发请求数，降低以减少资源竞争
+    const chunks = [];
+    for (let i = 0; i < parsedModelList.value.length; i += maxConcurrentRequests) {
+      chunks.push(parsedModelList.value.slice(i, i + maxConcurrentRequests));
+    }
+    
+    let processedCount = 0;
+    
+    for (const chunk of chunks) {
+      const promises = chunk.map(async (model) => {
+        try {
+          // 获取模型的下载URL
+          const modelUrl = `https://civitai.com/api/v1/models/${model.id}`
+          // 构造请求选项，包含代理设置
+          const options: any = {
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
           
-          if (file?.downloadUrl) {
-            // 添加到下载队列
-            const result = await ipcRenderer.invoke('add-to-download-queue', model.id, model.name, file.downloadUrl)
+          // 添加代理设置
+          if (proxyForm.enabled) {
+            options.proxy = {
+              server: proxyForm.server,
+              enabled: true
+            }
+          }
+          options.useSystemProxy = proxyForm.useSystemProxy
+          
+          const response = await ipcRenderer.invoke('fetch-civitai-models', modelUrl, options)
+          
+          if (response.ok) {
+            const modelData = response.data
+            const version = modelData.modelVersions?.[0]
+            const file = version?.files?.[0]
             
-            if (result.success) {
-              successCount++
+            if (file?.downloadUrl) {
+              // 添加到下载队列
+              const result = await ipcRenderer.invoke('add-to-download-queue', model.id, model.name, file.downloadUrl)
+              
+              if (result.success) {
+                return { success: true, modelId: model.id }
+              } else {
+                console.error(`添加模型 ${model.id} 到下载队列失败:`, result.error)
+                return { success: false, modelId: model.id, error: result.error }
+              }
             } else {
-              failCount++
-              console.error(`添加模型 ${model.id} 到下载队列失败:`, result.error)
+              console.error(`模型 ${model.id} 没有可下载的文件`)
+              return { success: false, modelId: model.id, error: 'No downloadable files' }
             }
           } else {
-            failCount++
-            console.error(`模型 ${model.id} 没有可下载的文件`)
+            console.error(`获取模型 ${model.id} 信息失败:`, response.error)
+            return { success: false, modelId: model.id, error: response.error }
           }
-        } else {
-          failCount++
-          console.error(`获取模型 ${model.id} 信息失败:`, response.error)
+        } catch (error) {
+          console.error(`处理模型 ${model.id} 时发生错误:`, error)
+          return { success: false, modelId: model.id, error: error instanceof Error ? error.message : 'Unknown error' }
         }
-      } catch (error) {
-        failCount++
-        console.error(`处理模型 ${model.id} 时发生错误:`, error)
-      }
+      });
       
-      // 更新进度
-      batchDownloadProgress.value = Math.round(((i + 1) / total) * 100)
+      try {
+        const results = await Promise.allSettled(promises);
+        results.forEach(result => {
+          if (result.status === 'fulfilled' && result.value) {
+            if (result.value.success) {
+              successCount++;
+            } else {
+              failCount++;
+            }
+          } else {
+            failCount++;
+          }
+          processedCount++;
+          // 更新进度
+          batchDownloadProgress.value = Math.round((processedCount / total) * 100);
+        });
+        
+        // 在每个批次之间添加延迟，避免请求过于频繁
+        if (chunks.indexOf(chunk) < chunks.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000)); // 2秒延迟
+        }
+      } catch (batchError) {
+        console.error('批量处理下载队列失败:', batchError);
+        // 更新失败计数
+        failCount += chunk.length;
+        processedCount += chunk.length;
+        batchDownloadProgress.value = Math.round((processedCount / total) * 100);
+      }
     }
     
     // 刷新下载队列
