@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-07-21 16:28:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-23 20:01:31
+ * @LastEditTime: 2025-08-23 20:06:05
  * @FilePath: \EleTs\src\renderer\src\view\LoraPage\CivitaiPage.vue
  * @Description: Civitai模型浏览和下载页面
 -->
@@ -1217,6 +1217,18 @@ const watchPreviewVisible = () => {
   }
 }
 
+// 去除HTML标签
+const stripHtmlTags = (html: string): string => {
+  if (!html) return '';
+  
+  // 创建一个临时div元素
+  const tempDiv = document.createElement('div');
+  // 设置HTML内容
+  tempDiv.innerHTML = html;
+  // 返回纯文本内容
+  return tempDiv.textContent || tempDiv.innerText || '';
+}
+
 // 页面初始化
 onMounted(async () => {
   // 先获取代理设置和下载目录
@@ -1609,7 +1621,7 @@ onMounted(async () => {
         <div class="detail-section">
           <h3>描述</h3>
           <div class="description">
-            {{ selectedModel.description || '暂无描述' }}
+            {{ stripHtmlTags(selectedModel.description) || '暂无描述' }}
           </div>
         </div>
         
