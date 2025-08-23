@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-07-21 16:28:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-23 20:58:47
+ * @LastEditTime: 2025-08-23 21:14:48
  * @FilePath: \EleTs\src\renderer\src\view\LoraPage\CivitaiPage.vue
  * @Description: Civitai模型浏览和下载页面
 -->
@@ -1320,7 +1320,7 @@ onMounted(async () => {
 
 <template>
   <div class="civitai-page">
-    <Layout style="height: 100%;">
+    <Layout class="flex " style="height: 100%;">
       <Sider width="240" style="background: linear-gradient(180deg, #4f46e5 0%, #7c3aed 100%);">
         <div class="logo" style="padding: 24px; text-align: center; border-bottom: 1px solid rgba(255, 255, 255, 0.15);">
           <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
@@ -1344,9 +1344,9 @@ onMounted(async () => {
         />
       </Sider>
       <Layout>
-        <Content style="height: calc(100vh - 64px);">
+        <Content class="full-height-container flex" style="height:100vh;">
           <div v-if="showModelsPage" class="full-height-container">
-            <Card title="模型浏览器" style="width: 100%; height: 100%;">
+            <Card title="模型浏览器" class="full-width-card">
               <div class="search-section">
                 <Input 
                   v-model:value="searchQuery" 
@@ -1408,7 +1408,7 @@ onMounted(async () => {
           </div>
           
           <div v-if="showBatchDownloadPage" class="full-height-container">
-            <Card title="模型下载" style="width: 100%; height: 100%;">
+            <Card title="模型下载" class="full-width-card">
               <div style="margin-bottom: 24px;">
                 <h3 style="margin-bottom: 16px;"><DownloadOutlined /> 批量下载模型</h3>
                 
@@ -1510,7 +1510,7 @@ onMounted(async () => {
           </div>
           
           <div v-if="showDownloadsPage" class="full-height-container">
-            <Card title="下载队列" style="width: 100%; height: 100%;">
+            <Card title="下载队列" class="full-width-card">
               <Table
                 :columns="downloadColumns"
                 :data-source="downloadTasks"
@@ -1522,7 +1522,7 @@ onMounted(async () => {
           </div>
           
           <div v-if="showSettingsPage" class="full-height-container">
-            <Card title="设置" style="width: 100%; height: 100%;">
+            <Card title="设置" class="full-width-card">
               <div style="margin-bottom: 24px;">
                 <h3 style="margin-bottom: 16px;"><SettingOutlined /> 代理设置</h3>
                 <div style="margin-bottom: 16px;">
@@ -1786,12 +1786,14 @@ onMounted(async () => {
   border: none;
   box-shadow: none;
   overflow: hidden;
+  border-radius: 0;
   
   .ant-card-head {
     background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%);
     color: white;
     border-bottom: none;
     padding: 16px 20px;
+    border-radius: 0;
     
     .ant-card-head-title {
       color: white;
@@ -1804,6 +1806,12 @@ onMounted(async () => {
     padding: 16px;
     background: transparent;
   }
+}
+
+// 全宽度卡片样式
+.full-width-card {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 // 按钮样式优化
@@ -1959,7 +1967,7 @@ onMounted(async () => {
   .ant-table {
     .ant-table-container {
       .ant-table-content {
-        max-height: 400px;
+        max-height: 90vh;
         overflow-y: auto;
       }
     }
@@ -2464,7 +2472,7 @@ onMounted(async () => {
 }
 
 .full-height-container {
-  height: calc(100vh - 80px);
+  height: 100vh;
   display: flex;
   flex-direction: column;
   
