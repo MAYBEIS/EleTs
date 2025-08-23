@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-07-21 16:28:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-23 18:47:38
+ * @LastEditTime: 2025-08-23 19:33:09
  * @FilePath: \EleTs\src\renderer\src\view\LoraPage\CivitaiPage.vue
  * @Description: Civitai模型浏览和下载页面
 -->
@@ -167,8 +167,8 @@ const modelColumns: TableColumnsType = [
       if (!imageUrl) {
         return h('div', {
           style: {
-            width: '60px',
-            height: '60px',
+            width: '100px',
+            height: '100px',
             backgroundColor: '#f0f0f0',
             display: 'flex',
             alignItems: 'center',
@@ -184,8 +184,8 @@ const modelColumns: TableColumnsType = [
         src: imageUrl,
         alt: record.name,
         style: {
-          width: '60px',
-          height: '60px',
+          width: '100px',
+          height: '100px',
           objectFit: 'cover',
           borderRadius: '4px',
           cursor: 'pointer',
@@ -196,7 +196,7 @@ const modelColumns: TableColumnsType = [
           target.style.display = 'none'
           // 创建错误占位符
           const errorPlaceholder = document.createElement('div')
-          errorPlaceholder.style.cssText = 'width: 60px; height: 60px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #999; font-size: 12px; flex-direction: column; gap: 4px;'
+          errorPlaceholder.style.cssText = 'width: 100px; height: 100px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #999; font-size: 12px; flex-direction: column; gap: 4px;'
           errorPlaceholder.innerHTML = `
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
@@ -1469,8 +1469,8 @@ onMounted(async () => {
 // 图片预览样式
 .model-preview {
   &-image {
-    width: 60px;
-    height: 60px;
+    width: 100px;
+    height: 100px;
     object-fit: cover;
     border-radius: 8px;
     cursor: pointer;
@@ -1490,8 +1490,8 @@ onMounted(async () => {
   }
   
   &-placeholder {
-    width: 60px;
-    height: 60px;
+    width: 100px;
+    height: 100px;
     background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
     border-radius: 8px;
     display: flex;
@@ -1517,8 +1517,8 @@ onMounted(async () => {
   }
   
   &-error {
-    width: 60px;
-    height: 60px;
+    width: 100px;
+    height: 100px;
     background: linear-gradient(135deg, #fff2f0 0%, #fff1f0 100%);
     border-radius: 8px;
     display: flex;
@@ -1571,8 +1571,8 @@ onMounted(async () => {
 }
 
 .model-preview-loading {
-  width: 60px;
-  height: 60px;
+  width: 100px;
+  height: 100px;
   background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
   background-size: 200% 100%;
   animation: pulse 1.5s ease-in-out infinite;
