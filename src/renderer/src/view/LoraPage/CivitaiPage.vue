@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-07-21 16:28:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-23 20:31:09
+ * @LastEditTime: 2025-08-23 20:35:35
  * @FilePath: \EleTs\src\renderer\src\view\LoraPage\CivitaiPage.vue
  * @Description: Civitai模型浏览和下载页面
 -->
@@ -1335,8 +1335,8 @@ onMounted(async () => {
       </Sider>
       <Layout>
         <Content style="padding: 16px; height: calc(100vh - 32px); overflow: auto;">
-          <div v-if="showModelsPage">
-            <Card title="模型浏览器" style="width: 100%;">
+          <div v-if="showModelsPage" class="full-height-container">
+            <Card title="模型浏览器" style="width: 100%; height: 100%;">
               <div class="search-section">
                 <Input 
                   v-model:value="searchQuery" 
@@ -1398,8 +1398,8 @@ onMounted(async () => {
             </Card>
           </div>
           
-          <div v-if="showBatchDownloadPage">
-            <Card title="模型下载" style="width: 100%;">
+          <div v-if="showBatchDownloadPage" class="full-height-container">
+            <Card title="模型下载" style="width: 100%; height: 100%;">
               <div style="margin-bottom: 24px;">
                 <h3 style="margin-bottom: 16px;"><DownloadOutlined /> 批量下载模型</h3>
                 
@@ -1500,8 +1500,8 @@ onMounted(async () => {
             </Card>
           </div>
           
-          <div v-if="showDownloadsPage">
-            <Card title="下载队列" style="width: 100%;">
+          <div v-if="showDownloadsPage" class="full-height-container">
+            <Card title="下载队列" style="width: 100%; height: 100%;">
               <Table
                 :columns="downloadColumns"
                 :data-source="downloadTasks"
@@ -1512,8 +1512,8 @@ onMounted(async () => {
             </Card>
           </div>
           
-          <div v-if="showSettingsPage">
-            <Card title="设置" style="width: 100%;">
+          <div v-if="showSettingsPage" class="full-height-container">
+            <Card title="设置" style="width: 100%; height: 100%;">
               <div style="margin-bottom: 24px;">
                 <h3 style="margin-bottom: 16px;"><SettingOutlined /> 代理设置</h3>
                 <div style="margin-bottom: 16px;">
@@ -2263,6 +2263,23 @@ onMounted(async () => {
     
     &:hover {
       background: #a8a8a8;
+    }
+  }
+}
+
+.full-height-container {
+  height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  
+  :deep(.ant-card) {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    
+    .ant-card-body {
+      flex: 1;
+      overflow: auto;
     }
   }
 }
