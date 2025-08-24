@@ -3,7 +3,7 @@
  * 提供模型下载、进度跟踪、暂停、恢复、取消等功能
  */
 
-import { net } from 'electron';
+import { net, app } from 'electron';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { HttpProxyAgent } from 'http-proxy-agent';
 import * as fs from 'fs';
@@ -11,6 +11,7 @@ import * as path from 'path';
 import { pipeline, Transform } from 'stream';
 import { promisify } from 'util';
 import { createWriteStream } from 'fs';
+import axios from 'axios';
 
 // 重试函数
 async function retryRequest<T>(
@@ -175,7 +176,8 @@ export class ModelDownloader {
         // 使用Title + "--" + Version + "--" + Hash的格式
         const name1 = `${modelMetadata.title}--${modelMetadata.version}--${modelMetadata.hash}`;
         const validName = this.convertToValidFilename(name1);
-        finalFilename = validName + path.extname(filename);
+        // 确保模型文件使用.safetensors扩展名
+        finalFilename = validName + '.safetensors';
         console.log('使用命名规范重命名模型文件:', finalFilename);
       }
       
@@ -187,6 +189,44 @@ export class ModelDownloader {
       const permissionCheck = await this.checkFilePermissions(filePath);
       if (!permissionCheck.success) {
         throw new Error(permissionCheck.error || 'Insufficient file permissions');
+      }
+      
+      // 如果有模型元数据，首先保存元数据到metaData文件夹
+      if (modelMetadata) {
+        try {
+          console.log('开始保存模型元数据到metaData文件夹...');
+          const metadataFilename = await this.saveModelMetadata(modelMetadata);
+          console.log('模型元数据保存完成:', metadataFilename);
+        } catch (metadataError) {
+          console.error('保存模型元数据失败:', metadataError);
+          // 即使元数据保存失败，也继续下载模型
+        }
+      }
+      
+      // 如果有模型元数据，在开始下载前生成附加文件（在模型文件所在目录）
+      if (modelMetadata) {
+        try {
+          // 创建一个临时的下载任务对象用于生成元数据文件
+          const tempTask: DownloadTask = {
+            id: taskId,
+            name: uniqueFilename,
+            url: url,
+            status: DownloadStatus.WAITING,
+            progress: 0,
+            downloadedSize: 0,
+            totalSize: 0,
+            filePath: filePath,
+            addedAt: new Date().toISOString(),
+            modelMetadata: modelMetadata
+          };
+          
+          // 生成附加文件（在模型文件所在目录）
+          await this.generateAdditionalFiles(tempTask, filePath);
+          console.log('附加文件生成完成');
+        } catch (metadataError) {
+          console.error('生成附加文件失败:', metadataError);
+          // 即使附加文件生成失败，也继续下载模型
+        }
       }
       
       // 创建文件写入流
@@ -696,7 +736,8 @@ export class ModelDownloader {
         // 使用Title + "--" + Version + "--" + Hash的格式
         const name1 = `${modelMetadata.title}--${modelMetadata.version}--${modelMetadata.hash}`;
         const validName = this.convertToValidFilename(name1);
-        finalFilename = validName + path.extname(filename);
+        // 确保模型文件使用.safetensors扩展名
+        finalFilename = validName + '.safetensors';
         console.log('使用命名规范重命名恢复下载的模型文件:', finalFilename);
       }
       
@@ -1537,7 +1578,7 @@ export class ModelDownloader {
     try {
       const { modelMetadata } = task;
       const modelDir = path.dirname(modelFilePath);
-      const modelBaseName = path.basename(modelFilePath, path.extname(modelFilePath));
+      const modelBaseName = path.basename(modelFilePath, '.safetensors');
       
       // 使用与automa.js相同的命名逻辑
       // 如果有模型元数据，则重新生成文件名，确保附加文件与模型文件命名一致
