@@ -106,6 +106,7 @@ export class ModelDownloader {
   private config: DownloaderConfig;
   private activeDownloads: Map<string, {
     request: any;
+    abortController?: AbortController;
     filePath: string;
     fileStream: fs.WriteStream | null;
     downloadedSize: number;
@@ -284,7 +285,7 @@ export class ModelDownloader {
         
         // 获取文件总大小
         const contentLength = response.headers['content-length'];
-        const totalSize = contentLength ? parseInt(contentLength[0], 10) : 0;
+        const totalSize = contentLength ? parseInt(contentLength, 10) : 0;
         
         // 更新下载信息
         const downloadInfo = this.activeDownloads.get(taskId);
@@ -393,12 +394,18 @@ export class ModelDownloader {
         agent = new HttpProxyAgent(proxySettings.server);
       }
       
-      // 创建一个AbortController用于超时控制
+      // 创建一个AbortController用于超时控制和取消下载
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         controller.abort();
         console.log('Proxy download request timeout after 60 seconds');
       }, 60000); // 60秒超时
+      
+      // 保存AbortController以便取消下载
+      const existingDownloadInfo = this.activeDownloads.get(taskId);
+      if (existingDownloadInfo) {
+        existingDownloadInfo.abortController = controller;
+      }
       
       // 发起请求
       let response;
@@ -443,7 +450,8 @@ export class ModelDownloader {
       }
       
       // 获取文件总大小
-      const totalSize = parseInt(response.headers.get('content-length') || '0', 10);
+      const contentLength = response.headers.get('content-length');
+      const totalSize = contentLength ? parseInt(contentLength, 10) : 0;
       
       // 更新下载信息
       const updatedDownloadInfo = this.activeDownloads.get(taskId);
@@ -692,7 +700,7 @@ export class ModelDownloader {
         // 获取文件总大小
         let totalSize = 0;
         if (response.headers['content-length']) {
-          totalSize = parseInt(response.headers['content-length'][0], 10);
+          totalSize = parseInt(response.headers['content-length'], 10);
         }
         if (response.headers['content-range']) {
           // 从Content-Range头获取总大小，格式如"bytes 100-200/1000"
@@ -821,12 +829,18 @@ export class ModelDownloader {
         headers['Range'] = `bytes=${rangeStart}-`;
       }
       
-      // 创建一个AbortController用于超时控制
+      // 创建一个AbortController用于超时控制和取消下载
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         controller.abort();
         console.log('Proxy resume download request timeout after 60 seconds');
       }, 60000); // 60秒超时
+      
+      // 保存AbortController以便取消下载
+      const existingDownloadInfo = this.activeDownloads.get(taskId);
+      if (existingDownloadInfo) {
+        existingDownloadInfo.abortController = controller;
+      }
       
       // 发起请求
       let response;
@@ -877,8 +891,9 @@ export class ModelDownloader {
       
       // 获取文件总大小
       let totalSize = 0;
-      if (response.headers.get('content-length')) {
-        totalSize = parseInt(response.headers.get('content-length') || '0', 10);
+      const contentLength = response.headers.get('content-length');
+      if (contentLength) {
+        totalSize = parseInt(contentLength, 10);
       }
       if (response.headers.get('content-range')) {
         // 从Content-Range头获取总大小
@@ -933,10 +948,33 @@ export class ModelDownloader {
         return false;
       }
       
-      // 取消请求
-      if (downloadInfo.request) {
+      // 取消请求 - 处理不同类型的请求对象
+      if (downloadInfo.abortController) {
         try {
-          downloadInfo.request.cancel();
+          // 优先使用AbortController取消代理下载
+          downloadInfo.abortController.abort();
+          console.log('使用AbortController取消下载:', taskId);
+        } catch (abortError) {
+          console.error('AbortController取消失败:', abortError);
+        }
+      }
+      else if (downloadInfo.request) {
+        try {
+          // 检查是否是标准的Electron请求对象
+          if (downloadInfo.request.cancel) {
+            downloadInfo.request.cancel();
+            console.log('使用request.cancel()取消下载:', taskId);
+          }
+          // 检查是否是AbortController（用于代理下载）
+          else if (downloadInfo.request.abort) {
+            downloadInfo.request.abort();
+            console.log('使用request.abort()取消下载:', taskId);
+          }
+          // 检查是否是AbortController实例
+          else if (downloadInfo.request.signal && downloadInfo.request.abort) {
+            downloadInfo.request.abort();
+            console.log('使用signal.abort()取消下载:', taskId);
+          }
         } catch (cancelError) {
           console.error('取消请求失败:', cancelError);
         }
