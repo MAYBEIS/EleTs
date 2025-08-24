@@ -16,18 +16,31 @@ import { createWriteStream } from 'fs';
 async function retryRequest<T>(
   requestFn: () => Promise<T>,
   maxRetries: number = 3,
-  delayMs: number = 1000
+  delayMs: number = 1000,
+  abortController?: AbortController
 ): Promise<T> {
   let lastError: Error;
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
+      // 检查是否已取消
+      if (abortController && abortController.signal.aborted) {
+        throw new Error('Request aborted before retry');
+      }
       return await requestFn();
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
       
-      // 如果是AbortError且不是最后一次尝试，则等待后重试
-      if ((lastError.name === 'AbortError' || lastError.message.includes('aborted')) && attempt < maxRetries) {
+      // 如果是AbortError或已取消，则不再重试
+      if (lastError.name === 'AbortError' ||
+          lastError.message.includes('aborted') ||
+          (abortController && abortController.signal.aborted)) {
+        console.warn('Request was aborted, not retrying');
+        throw lastError;
+      }
+      
+      // 如果不是最后一次尝试，则等待后重试
+      if (attempt < maxRetries) {
         console.warn(`Request attempt ${attempt} failed, retrying in ${delayMs}ms...`, lastError.message);
         await new Promise(resolve => setTimeout(resolve, delayMs));
         // 指数退避
@@ -107,6 +120,8 @@ export class ModelDownloader {
   private activeDownloads: Map<string, {
     request: any;
     abortController?: AbortController;
+    isCancelled: boolean;
+    isDestroyed: boolean;
     filePath: string;
     fileStream: fs.WriteStream | null;
     downloadedSize: number;
@@ -179,6 +194,8 @@ export class ModelDownloader {
       // 保存下载信息
       this.activeDownloads.set(taskId, {
         request: null,
+        isCancelled: false,
+        isDestroyed: false,
         filePath,
         fileStream,
         downloadedSize: 0,
@@ -242,6 +259,12 @@ export class ModelDownloader {
         throw new Error('Download task not found');
       }
 
+      // 检查是否已取消或已销毁
+      if (downloadInfo.isCancelled || downloadInfo.isDestroyed) {
+        console.log('下载已取消或已销毁，不执行下载');
+        return false;
+      }
+
       const { proxySettings } = this.config;
       
       // 根据代理设置创建请求
@@ -277,6 +300,15 @@ export class ModelDownloader {
       request.on('response', (response: any) => {
         console.log('收到响应:', response.statusCode);
         
+        // 检查是否已取消或已销毁
+        const currentDownloadInfo = this.activeDownloads.get(taskId);
+        if (!currentDownloadInfo || currentDownloadInfo.isCancelled || currentDownloadInfo.isDestroyed) {
+          console.log('下载已取消或已销毁，停止处理响应');
+          response.destroy();
+          request.destroy();
+          return;
+        }
+        
         // 检查响应状态
         if (response.statusCode < 200 || response.statusCode >= 300) {
           this.handleDownloadError(taskId, `HTTP ${response.statusCode}`);
@@ -288,17 +320,32 @@ export class ModelDownloader {
         const totalSize = contentLength ? parseInt(contentLength, 10) : 0;
         
         // 更新下载信息
-        const downloadInfo = this.activeDownloads.get(taskId);
-        if (downloadInfo) {
-          downloadInfo.totalSize = totalSize;
+        if (currentDownloadInfo) {
+          currentDownloadInfo.totalSize = totalSize;
         }
         
         // 监听数据接收
         response.on('data', (chunk: Buffer) => {
           const downloadInfo = this.activeDownloads.get(taskId);
           if (downloadInfo && downloadInfo.fileStream) {
+            // 检查是否已取消或已销毁
+            if (downloadInfo.isCancelled || downloadInfo.isDestroyed) {
+              console.log('下载已取消或已销毁，停止写入数据');
+              response.destroy();
+              request.destroy();
+              return;
+            }
+            
             // 写入文件
-            downloadInfo.fileStream.write(chunk);
+            try {
+              downloadInfo.fileStream.write(chunk);
+            } catch (writeError) {
+              console.error('写入文件失败:', writeError);
+              response.destroy();
+              request.destroy();
+              this.handleDownloadError(taskId, 'Failed to write to file');
+              return;
+            }
             
             // 更新已下载大小
             downloadInfo.downloadedSize += chunk.length;
@@ -313,7 +360,11 @@ export class ModelDownloader {
             
             // 调用进度回调
             if (downloadInfo.progressCallback) {
-              downloadInfo.progressCallback(progress, downloadInfo.downloadedSize, totalSize);
+              try {
+                downloadInfo.progressCallback(progress, downloadInfo.downloadedSize, totalSize);
+              } catch (callbackError) {
+                console.error('进度回调失败:', callbackError);
+              }
             }
           }
         });
@@ -322,8 +373,22 @@ export class ModelDownloader {
         response.on('end', () => {
           const downloadInfo = this.activeDownloads.get(taskId);
           if (downloadInfo && downloadInfo.fileStream) {
+            // 检查是否已取消或已销毁
+            if (downloadInfo.isCancelled || downloadInfo.isDestroyed) {
+              console.log('下载已取消或已销毁，不处理完成事件');
+              response.destroy();
+              request.destroy();
+              return;
+            }
+            
             // 关闭文件流
-            downloadInfo.fileStream.end();
+            try {
+              downloadInfo.fileStream.end();
+            } catch (endError) {
+              console.error('关闭文件流失败:', endError);
+              this.handleDownloadError(taskId, 'Failed to close file stream');
+              return;
+            }
             
             // 调用下载完成处理
             this.handleDownloadCompletion(taskId);
@@ -340,11 +405,23 @@ export class ModelDownloader {
       // 监听请求错误
       request.on('error', (error: Error) => {
         console.error('下载请求错误:', error);
+        
+        // 检查是否已取消或已销毁
+        const downloadInfo = this.activeDownloads.get(taskId);
+        if (downloadInfo && (downloadInfo.isCancelled || downloadInfo.isDestroyed)) {
+          console.log('下载已取消或已销毁，不进行重试');
+          return;
+        }
+        
         // 如果还有重试次数，尝试重试
         if (retryCount > 0) {
           console.log(`下载失败，剩余重试次数: ${retryCount}`);
           setTimeout(() => {
-            this.executeDownload(taskId, url, retryCount - 1);
+            // 再次检查是否已取消或已销毁
+            const currentDownloadInfo = this.activeDownloads.get(taskId);
+            if (currentDownloadInfo && !currentDownloadInfo.isCancelled && !currentDownloadInfo.isDestroyed) {
+              this.executeDownload(taskId, url, retryCount - 1);
+            }
           }, 1000); // 1秒后重试
         } else {
           this.handleDownloadError(taskId, error.message);
@@ -411,34 +488,17 @@ export class ModelDownloader {
       let response;
       try {
         response = await retryRequest(async () => {
-          // 为每次重试创建新的AbortController
-          const retryController = new AbortController();
-          const retryTimeoutId = setTimeout(() => {
-            retryController.abort();
-            console.log('Proxy download request timeout after 60 seconds');
-          }, 60000);
-          
-          try {
-            const result = await nodeFetch(url, {
-              method: 'GET',
-              agent: agent,
-              headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-              },
-              signal: retryController.signal
-            });
-            clearTimeout(retryTimeoutId);
-            return result;
-          } catch (fetchError) {
-            clearTimeout(retryTimeoutId);
-            // 检查是否是AbortError
-            if (fetchError.name === 'AbortError' || fetchError.message.includes('aborted')) {
-              console.warn('Proxy download request was aborted:', fetchError.message);
-              throw new Error('Proxy download request timeout or aborted');
-            }
-            throw fetchError;
-          }
-        }, 2, 3000); // 最多重试2次，初始延迟3秒
+          // 使用主AbortController而不是创建新的
+          const result = await nodeFetch(url, {
+            method: 'GET',
+            agent: agent,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            signal: controller.signal
+          });
+          return result;
+        }, 2, 3000, controller); // 最多重试2次，初始延迟3秒，传递主AbortController
       } catch (fetchError) {
         throw fetchError;
       } finally {
@@ -571,6 +631,8 @@ export class ModelDownloader {
       // 保存下载信息
       this.activeDownloads.set(taskId, {
         request: null,
+        isCancelled: false,
+        isDestroyed: false,
         filePath,
         fileStream,
         downloadedSize,
@@ -636,6 +698,12 @@ export class ModelDownloader {
         throw new Error('Download task not found');
       }
 
+      // 检查是否已取消或已销毁
+      if (downloadInfo.isCancelled || downloadInfo.isDestroyed) {
+        console.log('下载已取消或已销毁，不执行恢复下载');
+        return false;
+      }
+
       const { proxySettings } = this.config;
       
       // 根据代理设置创建请求
@@ -680,6 +748,15 @@ export class ModelDownloader {
       request.on('response', (response: any) => {
         console.log('收到恢复下载响应:', response.statusCode);
         
+        // 检查是否已取消或已销毁
+        const currentDownloadInfo = this.activeDownloads.get(taskId);
+        if (!currentDownloadInfo || currentDownloadInfo.isCancelled || currentDownloadInfo.isDestroyed) {
+          console.log('下载已取消或已销毁，停止处理恢复下载响应');
+          response.destroy();
+          request.destroy();
+          return;
+        }
+        
         // 检查响应状态
         if (response.statusCode < 200 || response.statusCode >= 300) {
           // 特殊处理断点续传的情况
@@ -712,17 +789,32 @@ export class ModelDownloader {
         }
         
         // 更新下载信息
-        const downloadInfo = this.activeDownloads.get(taskId);
-        if (downloadInfo) {
-          downloadInfo.totalSize = totalSize;
+        if (currentDownloadInfo) {
+          currentDownloadInfo.totalSize = totalSize;
         }
         
         // 监听数据接收
         response.on('data', (chunk: Buffer) => {
           const downloadInfo = this.activeDownloads.get(taskId);
           if (downloadInfo && downloadInfo.fileStream) {
+            // 检查是否已取消或已销毁
+            if (downloadInfo.isCancelled || downloadInfo.isDestroyed) {
+              console.log('下载已取消或已销毁，停止写入恢复下载数据');
+              response.destroy();
+              request.destroy();
+              return;
+            }
+            
             // 写入文件
-            downloadInfo.fileStream.write(chunk);
+            try {
+              downloadInfo.fileStream.write(chunk);
+            } catch (writeError) {
+              console.error('写入文件失败:', writeError);
+              response.destroy();
+              request.destroy();
+              this.handleDownloadError(taskId, 'Failed to write to file');
+              return;
+            }
             
             // 更新已下载大小
             downloadInfo.downloadedSize += chunk.length;
@@ -737,7 +829,11 @@ export class ModelDownloader {
             
             // 调用进度回调
             if (downloadInfo.progressCallback) {
-              downloadInfo.progressCallback(progress, downloadInfo.downloadedSize, totalSize);
+              try {
+                downloadInfo.progressCallback(progress, downloadInfo.downloadedSize, totalSize);
+              } catch (callbackError) {
+                console.error('进度回调失败:', callbackError);
+              }
             }
           }
         });
@@ -746,8 +842,22 @@ export class ModelDownloader {
         response.on('end', () => {
           const downloadInfo = this.activeDownloads.get(taskId);
           if (downloadInfo && downloadInfo.fileStream) {
+            // 检查是否已取消或已销毁
+            if (downloadInfo.isCancelled || downloadInfo.isDestroyed) {
+              console.log('下载已取消或已销毁，不处理恢复下载完成事件');
+              response.destroy();
+              request.destroy();
+              return;
+            }
+            
             // 关闭文件流
-            downloadInfo.fileStream.end();
+            try {
+              downloadInfo.fileStream.end();
+            } catch (endError) {
+              console.error('关闭文件流失败:', endError);
+              this.handleDownloadError(taskId, 'Failed to close file stream');
+              return;
+            }
             
             // 调用下载完成处理
             this.handleDownloadCompletion(taskId);
@@ -764,11 +874,23 @@ export class ModelDownloader {
       // 监听请求错误
       request.on('error', (error: Error) => {
         console.error('恢复下载请求错误:', error);
+        
+        // 检查是否已取消或已销毁
+        const downloadInfo = this.activeDownloads.get(taskId);
+        if (downloadInfo && (downloadInfo.isCancelled || downloadInfo.isDestroyed)) {
+          console.log('下载已取消或已销毁，不进行恢复下载重试');
+          return;
+        }
+        
         // 如果还有重试次数，尝试重试
         if (retryCount > 0) {
           console.log(`恢复下载失败，剩余重试次数: ${retryCount}`);
           setTimeout(() => {
-            this.executeResumeDownload(taskId, url, rangeStart, retryCount - 1);
+            // 再次检查是否已取消或已销毁
+            const currentDownloadInfo = this.activeDownloads.get(taskId);
+            if (currentDownloadInfo && !currentDownloadInfo.isCancelled && !currentDownloadInfo.isDestroyed) {
+              this.executeResumeDownload(taskId, url, rangeStart, retryCount - 1);
+            }
           }, 1000); // 1秒后重试
         } else {
           this.handleDownloadError(taskId, error.message);
@@ -846,32 +968,15 @@ export class ModelDownloader {
       let response;
       try {
         response = await retryRequest(async () => {
-          // 为每次重试创建新的AbortController
-          const retryController = new AbortController();
-          const retryTimeoutId = setTimeout(() => {
-            retryController.abort();
-            console.log('Proxy resume download request timeout after 60 seconds');
-          }, 60000);
-          
-          try {
-            const result = await nodeFetch(url, {
-              method: 'GET',
-              agent: agent,
-              headers: headers,
-              signal: retryController.signal
-            });
-            clearTimeout(retryTimeoutId);
-            return result;
-          } catch (fetchError) {
-            clearTimeout(retryTimeoutId);
-            // 检查是否是AbortError
-            if (fetchError.name === 'AbortError' || fetchError.message.includes('aborted')) {
-              console.warn('Proxy resume download request was aborted:', fetchError.message);
-              throw new Error('Proxy resume download request timeout or aborted');
-            }
-            throw fetchError;
-          }
-        }, 2, 3000); // 最多重试2次，初始延迟3秒
+          // 使用主AbortController而不是创建新的
+          const result = await nodeFetch(url, {
+            method: 'GET',
+            agent: agent,
+            headers: headers,
+            signal: controller.signal
+          });
+          return result;
+        }, 2, 3000, controller); // 最多重试2次，初始延迟3秒，传递主AbortController
       } catch (fetchError) {
         throw fetchError;
       } finally {
@@ -948,6 +1053,10 @@ export class ModelDownloader {
         return false;
       }
       
+      // 首先标记为已取消，这将阻止所有后续操作
+      downloadInfo.isCancelled = true;
+      console.log('标记下载任务为已取消:', taskId);
+      
       // 取消请求 - 处理不同类型的请求对象
       if (downloadInfo.abortController) {
         try {
@@ -975,15 +1084,29 @@ export class ModelDownloader {
             downloadInfo.request.abort();
             console.log('使用signal.abort()取消下载:', taskId);
           }
+          // 如果有destroy方法，也调用它
+          else if (downloadInfo.request.destroy) {
+            downloadInfo.request.destroy();
+            console.log('使用request.destroy()取消下载:', taskId);
+          }
         } catch (cancelError) {
           console.error('取消请求失败:', cancelError);
         }
       }
       
+      // 标记为已销毁，确保所有操作都会停止
+      downloadInfo.isDestroyed = true;
+      console.log('标记下载任务为已销毁:', taskId);
+      
       // 关闭并删除文件
       if (downloadInfo.fileStream) {
         try {
-          downloadInfo.fileStream.destroy();
+          // 确保文件流被销毁
+          if (typeof downloadInfo.fileStream.destroy === 'function') {
+            downloadInfo.fileStream.destroy();
+          } else if (typeof downloadInfo.fileStream.close === 'function') {
+            downloadInfo.fileStream.close();
+          }
         } catch (streamError) {
           console.error('关闭文件流失败:', streamError);
         }
@@ -1523,11 +1646,29 @@ class ProgressTransformStream extends Transform {
   }
 
   _transform(chunk: Buffer, encoding: string, callback: Function) {
-    this.downloadedBytes += chunk.length;
-    
     // 获取下载信息
     const downloadInfo = (this.downloader as any).activeDownloads.get(this.taskId);
+    
+    // 检查是否已取消或已销毁
+    if (!downloadInfo || downloadInfo.isCancelled || downloadInfo.isDestroyed) {
+      console.log('下载已取消或已销毁，停止处理数据流');
+      // 立即停止处理数据流
+      this.destroy();
+      callback(new Error('Download cancelled or destroyed'));
+      return;
+    }
+    
+    this.downloadedBytes += chunk.length;
+    
     if (downloadInfo) {
+      // 再次检查是否已取消或已销毁
+      if (downloadInfo.isCancelled || downloadInfo.isDestroyed) {
+        console.log('下载已取消或已销毁，停止处理数据流');
+        this.destroy();
+        callback(new Error('Download cancelled or destroyed'));
+        return;
+      }
+      
       downloadInfo.downloadedSize = this.downloadedBytes;
       
       // 计算进度
@@ -1543,7 +1684,11 @@ class ProgressTransformStream extends Transform {
       
       // 调用进度回调
       if (downloadInfo.progressCallback) {
-        downloadInfo.progressCallback(progress, this.downloadedBytes, downloadInfo.totalSize);
+        try {
+          downloadInfo.progressCallback(progress, this.downloadedBytes, downloadInfo.totalSize);
+        } catch (callbackError) {
+          console.error('进度回调失败:', callbackError);
+        }
       }
     }
     
