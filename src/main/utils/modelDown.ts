@@ -67,6 +67,17 @@ export interface DownloadTask {
   addedAt: string;
   completedAt?: string;
   error?: string;
+  // 模型元数据，用于生成附加文件
+  modelMetadata?: {
+    title: string;
+    description: string;
+    version: string;
+    hash: string;
+    triggerWords: string[];
+    type: string;
+    usageTips: string;
+    imageUrl?: string;
+  };
 }
 
 // 代理设置接口
@@ -101,6 +112,7 @@ export class ModelDownloader {
     totalSize: number;
     progressCallback: ProgressCallback | null;
     completionCallback: CompletionCallback | null;
+    modelMetadata?: any;
   }> = new Map();
 
   constructor(config: DownloaderConfig) {
@@ -129,7 +141,8 @@ export class ModelDownloader {
     url: string,
     filename: string,
     progressCallback?: ProgressCallback,
-    completionCallback?: CompletionCallback
+    completionCallback?: CompletionCallback,
+    modelMetadata?: any
   ): Promise<boolean> {
     try {
       console.log(`开始下载模型: ${filename} from ${url}`);
@@ -140,8 +153,16 @@ export class ModelDownloader {
         throw new Error(dirCheck.error || 'Failed to create download directory');
       }
       
+      // 如果有模型元数据，则直接使用统一命名格式
+      let finalFilename = filename;
+      if (modelMetadata) {
+        const baseName = path.basename(filename, path.extname(filename));
+        const validName = this.convertToValidFilename(`${baseName}--${modelMetadata.version}--${modelMetadata.hash}`);
+        finalFilename = validName + path.extname(filename);
+      }
+      
       // 处理文件名冲突
-      const uniqueFilename = await this.generateUniqueFilename(filename);
+      const uniqueFilename = await this.generateUniqueFilename(finalFilename);
       const filePath = path.join(this.config.downloadDirectory, uniqueFilename);
       
       // 检查文件系统权限
@@ -161,7 +182,8 @@ export class ModelDownloader {
         downloadedSize: 0,
         totalSize: 0,
         progressCallback: progressCallback || null,
-        completionCallback: completionCallback || null
+        completionCallback: completionCallback || null,
+        modelMetadata: modelMetadata || null
       });
       
       // 发起下载请求
@@ -299,15 +321,8 @@ export class ModelDownloader {
             // 关闭文件流
             downloadInfo.fileStream.end();
             
-            // 调用完成回调
-            if (downloadInfo.completionCallback) {
-              downloadInfo.completionCallback(true, downloadInfo.filePath);
-            }
-            
-            // 从活动下载中移除
-            this.activeDownloads.delete(taskId);
-            
-            console.log('模型下载完成:', downloadInfo.filePath);
+            // 调用下载完成处理
+            this.handleDownloadCompletion(taskId);
           }
         });
         
@@ -501,7 +516,8 @@ export class ModelDownloader {
     url: string,
     filename: string,
     progressCallback?: ProgressCallback,
-    completionCallback?: CompletionCallback
+    completionCallback?: CompletionCallback,
+    modelMetadata?: any
   ): Promise<boolean> {
     try {
       console.log(`恢复下载模型: ${filename} from ${url}`);
@@ -540,7 +556,8 @@ export class ModelDownloader {
         downloadedSize,
         totalSize: 0, // 总大小将在请求时获取
         progressCallback: progressCallback || null,
-        completionCallback: completionCallback || null
+        completionCallback: completionCallback || null,
+        modelMetadata: modelMetadata || null
       });
       
       // 发起下载请求，支持断点续传
@@ -710,15 +727,8 @@ export class ModelDownloader {
             // 关闭文件流
             downloadInfo.fileStream.end();
             
-            // 调用完成回调
-            if (downloadInfo.completionCallback) {
-              downloadInfo.completionCallback(true, downloadInfo.filePath);
-            }
-            
-            // 从活动下载中移除
-            this.activeDownloads.delete(taskId);
-            
-            console.log('模型恢复下载完成:', downloadInfo.filePath);
+            // 调用下载完成处理
+            this.handleDownloadCompletion(taskId);
           }
         });
         
@@ -951,18 +961,34 @@ export class ModelDownloader {
    * 处理下载完成
    * @param taskId 任务ID
    */
-  private handleDownloadCompletion(taskId: string): void {
+  private async handleDownloadCompletion(taskId: string): Promise<void> {
     const downloadInfo = this.activeDownloads.get(taskId);
     if (downloadInfo) {
-      // 调用完成回调
-      if (downloadInfo.completionCallback) {
-        downloadInfo.completionCallback(true, downloadInfo.filePath);
+      try {
+        // 获取下载任务信息
+        const task = this.getDownloadTask(taskId);
+        if (task && task.modelMetadata) {
+          // 生成附加文件
+          await this.generateAdditionalFiles(task, downloadInfo.filePath);
+        }
+        
+        // 调用完成回调
+        if (downloadInfo.completionCallback) {
+          downloadInfo.completionCallback(true, downloadInfo.filePath);
+        }
+        
+        console.log('模型下载完成:', downloadInfo.filePath);
+      } catch (error) {
+        console.error('处理下载完成时出错:', error);
+        
+        // 即使生成附加文件失败，也调用完成回调
+        if (downloadInfo.completionCallback) {
+          downloadInfo.completionCallback(true, downloadInfo.filePath);
+        }
+      } finally {
+        // 从活动下载中移除
+        this.activeDownloads.delete(taskId);
       }
-      
-      // 从活动下载中移除
-      this.activeDownloads.delete(taskId);
-      
-      console.log('模型下载完成:', downloadInfo.filePath);
     }
   }
 
@@ -1016,7 +1042,7 @@ export class ModelDownloader {
     }
     
     // 这里需要根据实际需求构建DownloadTask对象
-    // 由于我们缺少一些信息，暂时返回一个基本的对象
+    // 返回包含所有必要信息的对象
     return {
       id: taskId,
       name: path.basename(downloadInfo.filePath),
@@ -1028,7 +1054,8 @@ export class ModelDownloader {
       downloadedSize: downloadInfo.downloadedSize,
       totalSize: downloadInfo.totalSize,
       filePath: downloadInfo.filePath,
-      addedAt: new Date().toISOString()
+      addedAt: new Date().toISOString(),
+      modelMetadata: downloadInfo.modelMetadata
     };
   }
 
@@ -1105,6 +1132,277 @@ export class ModelDownloader {
     }
     
     return uniqueFilename;
+  }
+
+  /**
+   * 生成附加文件（txt、json、md和图像文件）
+   * @param task 下载任务
+   * @param modelFilePath 模型文件路径
+   */
+  private async generateAdditionalFiles(task: DownloadTask, modelFilePath: string): Promise<void> {
+    if (!task.modelMetadata) {
+      console.log('没有模型元数据，跳过生成附加文件');
+      return;
+    }
+
+    try {
+      const { modelMetadata } = task;
+      const modelDir = path.dirname(modelFilePath);
+      const modelBaseName = path.basename(modelFilePath, path.extname(modelFilePath));
+      
+      // 生成有效的文件名
+      const validFilename = this.convertToValidFilename(`${modelBaseName}--${modelMetadata.version}--${modelMetadata.hash}`);
+      
+      // 1. 生成TXT文件
+      await this.generateTxtFile(modelDir, validFilename, modelMetadata);
+      
+      // 2. 生成JSON文件
+      await this.generateJsonFile(modelDir, validFilename, modelMetadata);
+      
+      // 3. 生成MD文件
+      await this.generateMdFile(modelDir, validFilename, modelMetadata);
+      
+      // 4. 下载图像文件
+      if (modelMetadata.imageUrl) {
+        await this.downloadImageFile(modelDir, validFilename, modelMetadata.imageUrl);
+      }
+      
+      console.log('所有附加文件生成完成');
+    } catch (error) {
+      console.error('生成附加文件时出错:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 生成TXT文件
+   * @param dir 目录路径
+   * @param filename 文件名
+   * @param metadata 模型元数据
+   */
+  private async generateTxtFile(dir: string, filename: string, metadata: any): Promise<void> {
+    try {
+      const txtContent = `${metadata.title}\n\nC站网址：\n${metadata.currentUrl || ''}\n模型ID:\n${metadata.hash}\nVersion:\n${metadata.version}\n使用TIP：${metadata.usageTips || ''}\n触发词：\n${metadata.triggerWords.join(', ')}\n版本号：${metadata.version}\n\n\n${metadata.description}`;
+      
+      const txtFilePath = path.join(dir, `${filename}.txt`);
+      await fs.promises.writeFile(txtFilePath, txtContent, 'utf8');
+      
+      console.log('TXT文件生成完成:', txtFilePath);
+    } catch (error) {
+      console.error('生成TXT文件失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 生成JSON文件
+   * @param dir 目录路径
+   * @param filename 文件名
+   * @param metadata 模型元数据
+   */
+  private async generateJsonFile(dir: string, filename: string, metadata: any): Promise<void> {
+    try {
+      let triggerWordsString = "";
+      if (metadata.triggerWords && Array.isArray(metadata.triggerWords) && metadata.triggerWords.length > 0) {
+        triggerWordsString = " {" + metadata.triggerWords.join(',') + "}";
+      }
+      
+      const jsonData = {
+        "description": metadata.type + triggerWordsString + "\n" + (metadata.currentUrl || ''),
+        "activation text": triggerWordsString,
+        "notes": metadata.description
+      };
+      
+      const jsonContent = JSON.stringify(jsonData, null, 2);
+      const jsonFilePath = path.join(dir, `${filename}.json`);
+      
+      await fs.promises.writeFile(jsonFilePath, jsonContent, 'utf8');
+      
+      console.log('JSON文件生成完成:', jsonFilePath);
+    } catch (error) {
+      console.error('生成JSON文件失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 生成MD文件
+   * @param dir 目录路径
+   * @param filename 文件名
+   * @param metadata 模型元数据
+   */
+  private async generateMdFile(dir: string, filename: string, metadata: any): Promise<void> {
+    try {
+      const mdContent = `# ${metadata.title}
+
+## 基本信息
+- **模型名称**: ${metadata.title}
+- **模型类型**: ${metadata.type}
+- **模型版本**: ${metadata.version}
+- **模型ID**: ${metadata.hash}
+- **C站网址**: ${metadata.currentUrl || ''}
+
+## 使用说明
+${metadata.usageTips || '暂无使用说明'}
+
+## 触发词
+${metadata.triggerWords.map((word: string) => `- ${word}`).join('\n')}
+
+## 模型描述
+${metadata.description}
+
+---
+*此文件由Civitai模型下载工具自动生成*
+`;
+      
+      const mdFilePath = path.join(dir, `${filename}.md`);
+      await fs.promises.writeFile(mdFilePath, mdContent, 'utf8');
+      
+      console.log('MD文件生成完成:', mdFilePath);
+    } catch (error) {
+      console.error('生成MD文件失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 下载图像文件
+   * @param dir 目录路径
+   * @param filename 文件名
+   * @param imageUrl 图像URL
+   */
+  private async downloadImageFile(dir: string, filename: string, imageUrl: string): Promise<void> {
+    try {
+      // 获取图像文件扩展名
+      const urlObj = new URL(imageUrl);
+      const urlPath = urlObj.pathname;
+      const ext = path.extname(urlPath) || '.jpg'; // 默认使用jpg扩展名
+      
+      const imagePath = path.join(dir, `${filename}${ext}`);
+      
+      // 检查文件是否已存在
+      if (fs.existsSync(imagePath)) {
+        console.log('图像文件已存在，跳过下载:', imagePath);
+        return;
+      }
+      
+      // 下载图像
+      const { proxySettings } = this.config;
+      
+      // 根据代理设置创建请求
+      let request: any;
+      
+      // 如果启用了系统代理
+      if (proxySettings.useSystemProxy) {
+        console.log('使用系统代理下载图像');
+        request = net.request({
+          url: imageUrl,
+          method: 'GET'
+        });
+      }
+      // 如果启用了自定义代理
+      else if (proxySettings.enabled && proxySettings.server) {
+        console.log('使用自定义代理下载图像:', proxySettings.server);
+        // 使用node-fetch配合代理代理
+        const nodeFetch = (await import('node-fetch')).default;
+        
+        let agent;
+        if (proxySettings.server.startsWith('https://')) {
+          agent = new HttpsProxyAgent(proxySettings.server);
+        } else {
+          agent = new HttpProxyAgent(proxySettings.server);
+        }
+        
+        const response = await nodeFetch(imageUrl, {
+          method: 'GET',
+          agent: agent,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        // 将图像数据写入文件
+        const buffer = await response.buffer();
+        await fs.promises.writeFile(imagePath, buffer);
+        
+        console.log('图像文件下载完成:', imagePath);
+        return;
+      }
+      // 直接连接（无代理）
+      else {
+        console.log('直接下载图像');
+        request = net.request({
+          url: imageUrl,
+          method: 'GET'
+        });
+      }
+      
+      // 设置请求头
+      request.setHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+      
+      // 创建文件写入流
+      const fileStream = createWriteStream(imagePath);
+      
+      // 监听响应
+      request.on('response', (response: any) => {
+        // 检查响应状态
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          fileStream.destroy();
+          throw new Error(`HTTP ${response.statusCode}`);
+        }
+        
+        // 监听数据接收
+        response.on('data', (chunk: Buffer) => {
+          fileStream.write(chunk);
+        });
+        
+        // 监听下载完成
+        response.on('end', () => {
+          fileStream.end();
+          console.log('图像文件下载完成:', imagePath);
+        });
+        
+        // 监听错误
+        response.on('error', (error: Error) => {
+          console.error('下载图像响应错误:', error);
+          fileStream.destroy();
+          fs.unlink(imagePath, () => {}); // 删除不完整的文件
+        });
+      });
+      
+      // 监听请求错误
+      request.on('error', (error: Error) => {
+        console.error('下载图像请求错误:', error);
+        fileStream.destroy();
+        fs.unlink(imagePath, () => {}); // 删除不完整的文件
+      });
+      
+      // 发送请求
+      request.end();
+    } catch (error) {
+      console.error('下载图像文件失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 将文本转换为有效的文件名
+   * @param text 原始文本
+   * @returns 有效的文件名
+   */
+  private convertToValidFilename(text: string): string {
+    // 先去除空格
+    let result = text.replace(/\s+/g, '');
+    
+    // 替换非法文件名字符为下划线
+    // Windows 文件名不允许包含 \ / : * ? " < > |
+    result = result.replace(/[\\/:*?"<>|]+/g, '_');
+    
+    return result;
   }
 }
 
