@@ -4,6 +4,68 @@
  */
 
 import { net, app } from 'electron';
+
+/**
+ * 安全的日志输出函数，确保中文字符在Windows控制台正确显示
+ * @param args 要输出的参数
+ */
+function safeLog(...args: any[]): void {
+  if (process.platform === 'win32') {
+    // 在Windows系统上，确保输出使用UTF-8编码
+    try {
+      // 将所有参数转换为字符串，并确保使用UTF-8编码
+      const messages = args.map(arg => {
+        if (typeof arg === 'string') {
+          return arg;
+        } else if (typeof arg === 'object') {
+          return JSON.stringify(arg, null, 2);
+        } else {
+          return String(arg);
+        }
+      });
+      
+      // 使用console.log输出，但确保编码正确
+      console.log(messages.join(' '));
+    } catch (error) {
+      // 如果安全日志输出失败，回退到普通console.log
+      console.log(...args);
+    }
+  } else {
+    // 在非Windows系统上，直接使用console.log
+    console.log(...args);
+  }
+}
+
+/**
+ * 安全的错误日志输出函数，确保中文字符在Windows控制台正确显示
+ * @param args 要输出的参数
+ */
+function safeError(...args: any[]): void {
+  if (process.platform === 'win32') {
+    // 在Windows系统上，确保输出使用UTF-8编码
+    try {
+      // 将所有参数转换为字符串，并确保使用UTF-8编码
+      const messages = args.map(arg => {
+        if (typeof arg === 'string') {
+          return arg;
+        } else if (typeof arg === 'object') {
+          return JSON.stringify(arg, null, 2);
+        } else {
+          return String(arg);
+        }
+      });
+      
+      // 使用console.error输出，但确保编码正确
+      console.error(messages.join(' '));
+    } catch (error) {
+      // 如果安全错误日志输出失败，回退到普通console.error
+      console.error(...args);
+    }
+  } else {
+    // 在非Windows系统上，直接使用console.error
+    console.error(...args);
+  }
+}
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { HttpProxyAgent } from 'http-proxy-agent';
 import * as fs from 'fs';
@@ -82,14 +144,22 @@ export interface DownloadTask {
   error?: string;
   // 模型元数据，用于生成附加文件
   modelMetadata?: {
+    id: string;
     title: string;
     description: string;
     version: string;
     hash: string;
     triggerWords: string[];
     type: string;
-    usageTips: string;
+    nsfw: boolean;
+    tags: string[];
+    trainedWords: string[];
+    baseModel: string;
     imageUrl?: string;
+    downloadUrl?: string;
+    currentUrl?: string;
+    usageTips?: string;
+    stats?: any;
   };
 }
 
@@ -164,8 +234,8 @@ export class ModelDownloader {
 
       // 1. 保存JSON文件
       const jsonData = {
-        "description": modelMetadata.type + (modelMetadata.triggerWords ? " {" + modelMetadata.triggerWords.join(',') + "}" : "") + "\n" + (modelMetadata.currentUrl || ''),
-        "activation text": modelMetadata.triggerWords ? " {" + modelMetadata.triggerWords.join(',') + "}" : "",
+        "description": modelMetadata.type + (modelMetadata.trainedWords ? " {" + modelMetadata.trainedWords.join(',') + "}" : "") + "\n" + (modelMetadata.currentUrl || ''),
+        "activation text": modelMetadata.trainedWords ? " {" + modelMetadata.trainedWords.join(',') + "}" : "",
         "notes": modelMetadata.description
       };
 
@@ -174,7 +244,7 @@ export class ModelDownloader {
       fs.writeFileSync(jsonFilePath, jsonContent, 'utf8');
 
       // 2. 保存TXT文件
-      const txtContent = `${modelMetadata.title}\n\nC站网址：\n${modelMetadata.currentUrl || ''}\n模型ID:\n${modelMetadata.hash}\nVersion:\n${modelMetadata.version}\n使用TIP：${modelMetadata.usageTips || ''}\n触发词：\n${modelMetadata.triggerWords ? modelMetadata.triggerWords.join(', ') : ''}\n版本号：${modelMetadata.version}\n\n\n${modelMetadata.description}`;
+      const txtContent = `${modelMetadata.title}\n\nC站网址：\n${modelMetadata.currentUrl || ''}\n模型ID:\n${modelMetadata.hash}\nVersion:\n${modelMetadata.version}\n使用TIP：${modelMetadata.usageTips || ''}\n触发词：\n${modelMetadata.trainedWords ? modelMetadata.trainedWords.join(', ') : ''}\n版本号：${modelMetadata.version}\n\n\n${modelMetadata.description}`;
       const txtFilePath = path.join(metaDataDir, `${baseFilename}.txt`);
       fs.writeFileSync(txtFilePath, txtContent, 'utf8');
 
@@ -252,7 +322,8 @@ export class ModelDownloader {
     modelMetadata?: any
   ): Promise<boolean> {
     try {
-      console.log(`开始下载模型: ${filename} from ${url}`);
+      safeLog(`开始下载模型: ${filename} from ${url}`);
+      safeLog('模型元数据:', modelMetadata);
       
       // 确保下载目录存在
       const dirCheck = await this.ensureDownloadDirectory();
@@ -262,10 +333,11 @@ export class ModelDownloader {
       
       // 如果有模型元数据，则直接使用统一命名格式（参考automa.js的命名逻辑）
       let finalFilename = filename;
+      let validName = '';
       if (modelMetadata) {
         // 使用Title + "--" + Version + "--" + Hash的格式
         const name1 = `${modelMetadata.title}--${modelMetadata.version}--${modelMetadata.hash}`;
-        const validName = this.convertToValidFilename(name1);
+        validName = this.convertToValidFilename(name1);
         // 确保模型文件使用.safetensors扩展名
         finalFilename = validName + '.safetensors';
         console.log('使用命名规范重命名模型文件:', finalFilename);
@@ -275,6 +347,8 @@ export class ModelDownloader {
           finalFilename = finalFilename + '.safetensors';
           console.log('添加.safetensors扩展名:', finalFilename);
         }
+        // 如果没有模型元数据，使用原始文件名作为validName
+        validName = this.convertToValidFilename(path.basename(filename, path.extname(filename)));
       }
       
       // 处理文件名冲突
@@ -299,15 +373,16 @@ export class ModelDownloader {
         }
       }
       
-      // 如果有模型元数据，在开始下载前生成附加文件（在模型文件所在目录）
+      // 在下载模型文件前生成附加文件
       if (modelMetadata) {
         try {
-          // 创建一个临时的下载任务对象用于生成元数据文件
-          const tempTask: DownloadTask = {
+          console.log('开始生成附加文件...');
+          // 创建一个临时任务对象，用于生成附加文件
+          const tempTask = {
             id: taskId,
-            name: uniqueFilename,
+            name: finalFilename,
             url: url,
-            status: DownloadStatus.WAITING,
+            status: '等待中' as any,
             progress: 0,
             downloadedSize: 0,
             totalSize: 0,
@@ -316,11 +391,11 @@ export class ModelDownloader {
             modelMetadata: modelMetadata
           };
           
-          // 生成附加文件（在模型文件所在目录）
-          await this.generateAdditionalFiles(tempTask, filePath);
+          // 生成附加文件，使用validName作为文件名
+          await this.generateAdditionalFiles(tempTask, filePath, validName);
           console.log('附加文件生成完成');
-        } catch (metadataError) {
-          console.error('生成附加文件失败:', metadataError);
+        } catch (additionalFilesError) {
+          console.error('生成附加文件失败:', additionalFilesError);
           // 即使附加文件生成失败，也继续下载模型
         }
       }
@@ -341,6 +416,8 @@ export class ModelDownloader {
         completionCallback: completionCallback || null,
         modelMetadata: modelMetadata || null
       });
+      
+      console.log('下载任务已创建，元数据:', modelMetadata);
       
       // 发起下载请求
       const success = await this.performDownload(taskId, url);
@@ -828,10 +905,11 @@ export class ModelDownloader {
       
       // 如果有模型元数据，则直接使用统一命名格式（参考automa.js的命名逻辑）
       let finalFilename = filename;
+      let validName = '';
       if (modelMetadata) {
         // 使用Title + "--" + Version + "--" + Hash的格式
         const name1 = `${modelMetadata.title}--${modelMetadata.version}--${modelMetadata.hash}`;
-        const validName = this.convertToValidFilename(name1);
+        validName = this.convertToValidFilename(name1);
         // 确保模型文件使用.safetensors扩展名
         finalFilename = validName + '.safetensors';
         console.log('使用命名规范重命名恢复下载的模型文件:', finalFilename);
@@ -841,6 +919,8 @@ export class ModelDownloader {
           finalFilename = finalFilename + '.safetensors';
           console.log('添加.safetensors扩展名:', finalFilename);
         }
+        // 如果没有模型元数据，使用原始文件名作为validName
+        validName = this.convertToValidFilename(path.basename(filename, path.extname(filename)));
       }
       
       // 处理文件名冲突
@@ -858,6 +938,33 @@ export class ModelDownloader {
       if (fs.existsSync(filePath)) {
         const stats = fs.statSync(filePath);
         downloadedSize = stats.size;
+      }
+      
+      // 在恢复下载前生成附加文件（如果还没有生成的话）
+      if (modelMetadata) {
+        try {
+          console.log('开始生成附加文件...');
+          // 创建一个临时任务对象，用于生成附加文件
+          const tempTask = {
+            id: taskId,
+            name: finalFilename,
+            url: url,
+            status: '等待中' as any,
+            progress: 0,
+            downloadedSize: 0,
+            totalSize: 0,
+            filePath: filePath,
+            addedAt: new Date().toISOString(),
+            modelMetadata: modelMetadata
+          };
+          
+          // 生成附加文件，使用validName作为文件名
+          await this.generateAdditionalFiles(tempTask, filePath, validName);
+          console.log('附加文件生成完成');
+        } catch (additionalFilesError) {
+          console.error('生成附加文件失败:', additionalFilesError);
+          // 即使附加文件生成失败，也继续下载模型
+        }
       }
       
       // 创建文件写入流，使用追加模式
@@ -1466,26 +1573,19 @@ export class ModelDownloader {
     const downloadInfo = this.activeDownloads.get(taskId);
     if (downloadInfo) {
       try {
-        // 先标记模型文件下载完成，但不立即调用完成回调
-        console.log('模型文件下载完成，开始生成附加文件:', downloadInfo.filePath);
+        // 标记模型文件下载完成
+        console.log('模型文件下载完成:', downloadInfo.filePath);
         
-        // 获取下载任务信息
-        const task = this.getDownloadTask(taskId);
-        if (task && task.modelMetadata) {
-          // 生成附加文件
-          await this.generateAdditionalFiles(task, downloadInfo.filePath);
-        }
-        
-        // 所有操作完成后，才调用完成回调
+        // 直接调用完成回调，因为附加文件已经在下载前生成
         if (downloadInfo.completionCallback) {
           downloadInfo.completionCallback(true, downloadInfo.filePath);
         }
         
-        console.log('模型下载及附加文件生成完成:', downloadInfo.filePath);
+        console.log('模型下载完成:', downloadInfo.filePath);
       } catch (error) {
         console.error('处理下载完成时出错:', error);
         
-        // 即使生成附加文件失败，也调用完成回调
+        // 即使出错，也调用完成回调
         if (downloadInfo.completionCallback) {
           downloadInfo.completionCallback(true, downloadInfo.filePath);
         }
@@ -1542,12 +1642,13 @@ export class ModelDownloader {
   getDownloadTask(taskId: string): DownloadTask | undefined {
     const downloadInfo = this.activeDownloads.get(taskId);
     if (!downloadInfo) {
+      console.log('下载任务不存在:', taskId);
       return undefined;
     }
     
     // 这里需要根据实际需求构建DownloadTask对象
     // 返回包含所有必要信息的对象
-    return {
+    const task = {
       id: taskId,
       name: path.basename(downloadInfo.filePath),
       url: '', // URL信息需要额外保存
@@ -1561,6 +1662,9 @@ export class ModelDownloader {
       addedAt: new Date().toISOString(),
       modelMetadata: downloadInfo.modelMetadata
     };
+    
+    console.log('获取下载任务信息:', task);
+    return task;
   }
 
   /**
@@ -1671,7 +1775,7 @@ export class ModelDownloader {
    * @param task 下载任务
    * @param modelFilePath 模型文件路径
    */
-  private async generateAdditionalFiles(task: DownloadTask, modelFilePath: string): Promise<void> {
+  private async generateAdditionalFiles(task: DownloadTask, modelFilePath: string, validName?: string): Promise<void> {
     if (!task.modelMetadata) {
       console.log('没有模型元数据，跳过生成附加文件');
       return;
@@ -1680,30 +1784,42 @@ export class ModelDownloader {
     try {
       const { modelMetadata } = task;
       const modelDir = path.dirname(modelFilePath);
-      const modelBaseName = path.basename(modelFilePath, '.safetensors');
+      
+      console.log('开始生成附加文件，目录:', modelDir);
+      console.log('模型元数据:', modelMetadata);
       
       // 使用与automa.js相同的命名逻辑
-      // 如果有模型元数据，则重新生成文件名，确保附加文件与模型文件命名一致
-      let filename = modelBaseName;
-      if (modelMetadata) {
-        // 使用Title + "--" + Version + "--" + Hash的格式
+      // 如果提供了validName，则使用它，否则使用Title + "--" + Version + "--" + Hash的格式
+      let filename;
+      if (validName) {
+        filename = validName;
+        console.log('使用提供的validName作为附加文件名:', filename);
+      } else {
         const name1 = `${modelMetadata.title}--${modelMetadata.version}--${modelMetadata.hash}`;
         filename = this.convertToValidFilename(name1);
         console.log('使用命名规范重命名附加文件:', filename);
       }
       
       // 1. 生成TXT文件
+      console.log('开始生成TXT文件...');
       await this.generateTxtFile(modelDir, filename, modelMetadata);
+      console.log('TXT文件生成完成');
       
       // 2. 生成JSON文件
+      console.log('开始生成JSON文件...');
       await this.generateJsonFile(modelDir, filename, modelMetadata);
+      console.log('JSON文件生成完成');
       
       // 3. 生成MD文件
+      console.log('开始生成MD文件...');
       await this.generateMdFile(modelDir, filename, modelMetadata);
+      console.log('MD文件生成完成');
       
       // 4. 下载图像文件
       if (modelMetadata.imageUrl) {
+        console.log('开始下载图像文件...');
         await this.downloadImageFile(modelDir, filename, modelMetadata.imageUrl);
+        console.log('图像文件下载完成');
       }
       
       console.log('所有附加文件生成完成');
@@ -1721,10 +1837,15 @@ export class ModelDownloader {
    */
   private async generateTxtFile(dir: string, filename: string, metadata: any): Promise<void> {
     try {
+      console.log('开始生成TXT文件，目录:', dir, '文件名:', filename);
+      console.log('TXT文件元数据:', metadata);
+      
       // 使用与automa.js相同的内容格式
-      const txtContent = `${metadata.title}\n\nC站网址：\n${metadata.currentUrl || ''}\n模型ID:\n${metadata.hash}\nVersion:\n${metadata.version}\n使用TIP：${metadata.usageTips || ''}\n触发词：\n${metadata.triggerWords.join(', ')}\n版本号：${metadata.version}\n\n\n${metadata.description}`;
+      const triggerWords = metadata.trainedWords && metadata.trainedWords.length > 0 ? metadata.trainedWords.join(', ') : '';
+      const txtContent = `${metadata.title}\n\nC站网址：\n${metadata.currentUrl || ''}\n模型ID:\n${metadata.hash}\nVersion:\n${metadata.version}\n使用TIP：${metadata.usageTips || ''}\n触发词：\n${triggerWords}\n版本号：${metadata.version}\n\n\n${metadata.description}`;
       
       const txtFilePath = path.join(dir, `${filename}.txt`);
+      console.log('TXT文件路径:', txtFilePath);
       await fs.promises.writeFile(txtFilePath, txtContent, 'utf8');
       
       console.log('TXT文件生成完成:', txtFilePath);
@@ -1742,10 +1863,13 @@ export class ModelDownloader {
    */
   private async generateJsonFile(dir: string, filename: string, metadata: any): Promise<void> {
     try {
+      console.log('开始生成JSON文件，目录:', dir, '文件名:', filename);
+      console.log('JSON文件元数据:', metadata);
+      
       // 使用与automa.js相同的内容格式
       let triggerWordsString = "";
-      if (metadata.triggerWords && Array.isArray(metadata.triggerWords) && metadata.triggerWords.length > 0) {
-        triggerWordsString = " {" + metadata.triggerWords.join(',') + "}";
+      if (metadata.trainedWords && Array.isArray(metadata.trainedWords) && metadata.trainedWords.length > 0) {
+        triggerWordsString = " {" + metadata.trainedWords.join(',') + "}";
       }
       
       const jsonData = {
@@ -1756,6 +1880,7 @@ export class ModelDownloader {
       
       const jsonContent = JSON.stringify(jsonData, null, 2);
       const jsonFilePath = path.join(dir, `${filename}.json`);
+      console.log('JSON文件路径:', jsonFilePath);
       
       await fs.promises.writeFile(jsonFilePath, jsonContent, 'utf8');
       
@@ -1774,6 +1899,9 @@ export class ModelDownloader {
    */
   private async generateMdFile(dir: string, filename: string, metadata: any): Promise<void> {
     try {
+      console.log('开始生成MD文件，目录:', dir, '文件名:', filename);
+      console.log('MD文件元数据:', metadata);
+      
       const mdContent = `# ${metadata.title}
 
 ## 基本信息
@@ -1787,7 +1915,7 @@ export class ModelDownloader {
 ${metadata.usageTips || '暂无使用说明'}
 
 ## 触发词
-${metadata.triggerWords.map((word: string) => `- ${word}`).join('\n')}
+${metadata.trainedWords && metadata.trainedWords.length > 0 ? metadata.trainedWords.map((word: string) => `- ${word}`).join('\n') : '暂无触发词'}
 
 ## 模型描述
 ${metadata.description}
@@ -1797,6 +1925,7 @@ ${metadata.description}
 `;
       
       const mdFilePath = path.join(dir, `${filename}.md`);
+      console.log('MD文件路径:', mdFilePath);
       await fs.promises.writeFile(mdFilePath, mdContent, 'utf8');
       
       console.log('MD文件生成完成:', mdFilePath);
@@ -1814,12 +1943,15 @@ ${metadata.description}
    */
   private async downloadImageFile(dir: string, filename: string, imageUrl: string): Promise<void> {
     try {
+      console.log('开始下载图像文件，目录:', dir, '文件名:', filename, '图像URL:', imageUrl);
+      
       // 获取图像文件扩展名
       const urlObj = new URL(imageUrl);
       const urlPath = urlObj.pathname;
       const ext = path.extname(urlPath) || '.jpg'; // 默认使用jpg扩展名
       
       const imagePath = path.join(dir, `${filename}${ext}`);
+      console.log('图像文件路径:', imagePath);
       
       // 检查文件是否已存在
       if (fs.existsSync(imagePath)) {

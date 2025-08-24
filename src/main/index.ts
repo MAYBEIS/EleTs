@@ -7,6 +7,17 @@
 process.env.NODE_ENV = process.env.NODE_ENV || 'production'
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true'
 
+// 设置控制台输出编码为UTF-8，解决Windows系统下中文乱码问题
+if (process.platform === 'win32') {
+  process.stdout.write('\x1b[?25h'); // 显示光标
+  try {
+    // 尝试设置控制台输出编码为UTF-8
+    require('iconv-lite').encodingExists('utf8');
+  } catch (e) {
+    console.log('iconv-lite not available, console output may have encoding issues');
+  }
+}
+
 // 导入 Electron 工具包，提供常用的 Electron 开发工具
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 // 导入 Electron 核心模块

@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-07-21 16:28:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-24 09:36:06
+ * @LastEditTime: 2025-08-24 22:42:36
  * @FilePath: \EleTs\src\renderer\src\view\LoraPage\CivitaiPage.vue
  * @Description: Civitai模型浏览和下载页面
 -->
@@ -90,6 +90,7 @@ interface DownloadTask {
   addedAt: string
   completedAt?: string
   error?: string
+  modelMetadata?: any
 }
 
 // 定义代理设置接口
@@ -536,8 +537,25 @@ const fetchModels = async (page = 1) => {
 // 下载模型
 const downloadModel = async (model: CivitaiModel, version: any, file: any) => {
   try {
+    // 构建模型元数据
+    const modelMetadata = {
+      id: model.id,
+      title: model.name,
+      version: version.name,
+      hash: version.id,
+      description: model.description || '',
+      type: model.type,
+      nsfw: model.nsfw || false,
+      tags: model.tags || [],
+      trainedWords: version.trainedWords || [],
+      baseModel: version.baseModel,
+      imageUrl: version.images?.[0]?.url || '',
+      downloadUrl: file.downloadUrl,
+      stats: model.stats || {}
+    }
+    
     // 添加到下载队列
-    const result = await ipcRenderer.invoke('add-to-download-queue', model.id, model.name, file.downloadUrl)
+    const result = await ipcRenderer.invoke('add-to-download-queue', model.id, model.name, file.downloadUrl, modelMetadata)
     
     if (result.success) {
       // 获取更新后的下载队列
@@ -576,7 +594,68 @@ const fetchDownloadQueue = async () => {
 // 开始下载
 const startDownload = async (modelId: string) => {
   try {
-    const response = await ipcRenderer.invoke('start-download', modelId)
+    // 获取下载任务信息
+    const downloadTask = downloadTasks.value.find(task => task.id === modelId)
+    if (!downloadTask) {
+      Modal.error({
+        title: '操作失败',
+        content: '找不到对应的下载任务'
+      })
+      return
+    }
+    
+    // 获取模型详细信息
+    let modelMetadata = null
+    try {
+      const modelUrl = `https://civitai.com/api/v1/models/${modelId}`
+      // 构造请求选项，包含代理设置
+      const options: any = {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+      
+      // 添加代理设置
+      if (proxyForm.enabled) {
+        options.proxy = {
+          server: proxyForm.server,
+          enabled: true
+        }
+      }
+      options.useSystemProxy = proxyForm.useSystemProxy
+      
+      const modelResponse = await ipcRenderer.invoke('fetch-civitai-models', modelUrl, options)
+      
+      if (modelResponse.ok) {
+        const modelData = modelResponse.data
+        const version = modelData.modelVersions?.[0]
+        
+        if (version) {
+          // 构建模型元数据
+          modelMetadata = {
+            id: modelData.id,
+            title: modelData.name,
+            version: version.name,
+            hash: version.id,
+            description: modelData.description || '',
+            type: modelData.type,
+            nsfw: modelData.nsfw || false,
+            tags: modelData.tags || [],
+            trainedWords: version.trainedWords || [],
+            baseModel: version.baseModel,
+            imageUrl: version.images?.[0]?.url || '',
+            downloadUrl: version.files?.[0]?.downloadUrl || '',
+            stats: modelData.stats || {}
+          }
+        }
+      }
+    } catch (metadataError) {
+      console.error('获取模型元数据失败:', metadataError)
+      // 即使获取元数据失败，也继续下载
+    }
+    
+    // 调用开始下载，传递元数据
+    const response = await ipcRenderer.invoke('start-download', modelId, modelMetadata)
     if (response.success) {
       await fetchDownloadQueue()
       Modal.success({
@@ -962,8 +1041,25 @@ const batchAddToDownloadQueue = async () => {
             const file = version?.files?.[0]
             
             if (file?.downloadUrl) {
+              // 构建模型元数据
+              const modelMetadata = {
+                id: modelData.id,
+                title: modelData.name,
+                version: version.name,
+                hash: version.id,
+                description: modelData.description || '',
+                type: modelData.type,
+                nsfw: modelData.nsfw || false,
+                tags: modelData.tags || [],
+                trainedWords: version.trainedWords || [],
+                baseModel: version.baseModel,
+                imageUrl: version.images?.[0]?.url || '',
+                downloadUrl: file.downloadUrl,
+                stats: modelData.stats || {}
+              }
+              
               // 添加到下载队列
-              const result = await ipcRenderer.invoke('add-to-download-queue', model.id, model.name, file.downloadUrl)
+              const result = await ipcRenderer.invoke('add-to-download-queue', model.id, model.name, file.downloadUrl, modelMetadata)
               
               if (result.success) {
                 return { success: true, modelId: model.id }
@@ -1125,8 +1221,25 @@ const viewModelDetails = async (model: CivitaiModel) => {
 // 下载选中的模型版本
 const downloadModelVersion = async (model: CivitaiModel, version: any, file: any) => {
   try {
+    // 构建模型元数据
+    const modelMetadata = {
+      id: model.id,
+      title: model.name,
+      version: version.name,
+      hash: version.id,
+      description: model.description || '',
+      type: model.type,
+      nsfw: model.nsfw || false,
+      tags: model.tags || [],
+      trainedWords: version.trainedWords || [],
+      baseModel: version.baseModel,
+      imageUrl: version.images?.[0]?.url || '',
+      downloadUrl: file.downloadUrl,
+      stats: model.stats || {}
+    }
+    
     // 添加到下载队列
-    const result = await ipcRenderer.invoke('add-to-download-queue', model.id, model.name, file.downloadUrl)
+    const result = await ipcRenderer.invoke('add-to-download-queue', model.id, model.name, file.downloadUrl, modelMetadata)
     
     if (result.success) {
       // 获取更新后的下载队列

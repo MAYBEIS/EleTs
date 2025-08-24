@@ -189,9 +189,9 @@ export function initAiIpc() {
    * 处理打开开发者工具的请求
    * 渲染进程可以通过此 IPC 调用来打开开发者工具
    */
-  ipcMain.handle('open-dev-tools', async () => {
-    mainWindow.webContents.openDevTools()
-  })
+  // ipcMain.handle('open-dev-tools', async () => {
+  //   mainWindow.webContents.openDevTools()
+  // })
 
 
   /**
