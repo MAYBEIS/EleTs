@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-07-21 16:28:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-24 09:11:09
+ * @LastEditTime: 2025-08-24 09:30:25
  * @FilePath: \EleTs\src\renderer\src\view\LoraPage\CivitaiPage.vue
  * @Description: Civitai模型浏览和下载页面
 -->
@@ -164,7 +164,7 @@ const modelColumns: TableColumnsType = [
     title: '预览',
     dataIndex: 'preview',
     key: 'preview',
-    width: '10%',
+    width: '15%',
     customRender: ({ record }: { record: CivitaiModel }) => {
       const firstVersion = record.modelVersions?.[0]
       const firstImage = firstVersion?.images?.[0]
@@ -173,8 +173,10 @@ const modelColumns: TableColumnsType = [
       if (!imageUrl) {
         return h('div', {
           style: {
-            width: '100px',
-            height: '100px',
+            width: '80px',
+            height: '80px',
+            minWidth: '80px',
+            minHeight: '80px',
             backgroundColor: '#f0f0f0',
             display: 'flex',
             alignItems: 'center',
@@ -190,8 +192,10 @@ const modelColumns: TableColumnsType = [
         src: imageUrl,
         alt: record.name,
         style: {
-          width: '100px',
-          height: '100px',
+          width: '80px',
+          height: '80px',
+          minWidth: '80px',
+          minHeight: '80px',
           objectFit: 'cover',
           borderRadius: '4px',
           cursor: 'pointer',
@@ -202,7 +206,7 @@ const modelColumns: TableColumnsType = [
           target.style.display = 'none'
           // 创建错误占位符
           const errorPlaceholder = document.createElement('div')
-          errorPlaceholder.style.cssText = 'width: 100px; height: 100px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #999; font-size: 12px; flex-direction: column; gap: 4px;'
+          errorPlaceholder.style.cssText = 'width: 80px; height: 80px; min-width: 80px; min-height: 80px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #999; font-size: 12px; flex-direction: column; gap: 4px;'
           errorPlaceholder.innerHTML = `
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
@@ -272,21 +276,21 @@ const modelColumns: TableColumnsType = [
     title: '模型名称',
     dataIndex: 'name',
     key: 'name',
-    width: '25%',
+    width: '30%',
     customRender: ({ record }: { record: CivitaiModel }) => {
-      return h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } }, [
-        h('div', { style: { flex: 1 } }, [
-          h('div', { style: { fontWeight: 'bold' } }, record.name),
-          h('div', { style: { fontSize: '12px', color: '#888', marginTop: '4px' } }, record.description?.substring(0, 50) + '...')
+      return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '4px' } }, [
+        h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } }, [
+          h('div', { style: { fontWeight: 'bold', wordBreak: 'break-word', flex: 1 } }, record.name),
+          h(Button, {
+            type: 'text',
+            size: 'small',
+            icon: h(CopyOutlined),
+            onClick: () => copyModelId(record.id, record.name),
+            style: { marginLeft: '8px', flexShrink: 0 },
+            title: '复制模型ID'
+          })
         ]),
-        h(Button, {
-          type: 'text',
-          size: 'small',
-          icon: h(CopyOutlined),
-          onClick: () => copyModelId(record.id, record.name),
-          style: { marginLeft: '8px', flexShrink: 0 },
-          title: '复制模型ID'
-        })
+        h('div', { style: { fontSize: '12px', color: '#888', wordBreak: 'break-word' } }, stripHtmlTags(record.description)?.substring(0, 50) + '...')
       ])
     }
   },
@@ -337,23 +341,24 @@ const modelColumns: TableColumnsType = [
   {
     title: '操作',
     key: 'action',
-    width: '25%',
+    width: '30%',
     customRender: ({ record }: { record: CivitaiModel }) => {
       const version = record.modelVersions[0]
       const file = version?.files[0]
-      return h('div', [
+      return h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '4px' } }, [
         h(Button, {
           type: 'primary',
           icon: h(DownloadOutlined),
           onClick: () => downloadModel(record, version, file),
-          size: 'small'
+          size: 'small',
+          style: { flex: '1', minWidth: '60px' }
         }, () => '下载'),
         h(Button, {
           type: 'default',
           icon: h(FileSearchOutlined),
           onClick: () => viewModelDetails(record),
           size: 'small',
-          style: { marginLeft: '8px' }
+          style: { flex: '1', minWidth: '60px' }
         }, () => '详情')
       ])
     }
@@ -1938,6 +1943,7 @@ onMounted(async () => {
     color: #475569;
     font-weight: 600;
     border-bottom: 2px solid #e2e8f0;
+    white-space: nowrap;
   }
   
   .ant-table-tbody > tr:hover > td {
@@ -1946,6 +1952,54 @@ onMounted(async () => {
   
   .ant-table-tbody > tr > td {
     border-bottom: 1px solid #e2e8f0;
+    word-wrap: break-word;
+    word-break: break-word;
+  }
+  
+  // 响应式表格样式
+  @media (max-width: 1200px) {
+    .ant-table-thead > tr > th {
+      padding: 8px 4px;
+      font-size: 12px;
+    }
+    
+    .ant-table-tbody > tr > td {
+      padding: 8px 4px;
+      font-size: 12px;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .ant-table-thead > tr > th {
+      padding: 6px 2px;
+      font-size: 11px;
+    }
+    
+    .ant-table-tbody > tr > td {
+      padding: 6px 2px;
+      font-size: 11px;
+    }
+    
+    // 预览图在小屏幕上的样式
+    img {
+      width: 60px !important;
+      height: 60px !important;
+      min-width: 60px !important;
+      min-height: 60px !important;
+    }
+    
+    // 按钮在小屏幕上的样式
+    .ant-btn {
+      padding: 0 4px;
+      font-size: 10px;
+      height: 24px;
+    }
+    
+    .ant-btn-sm {
+      padding: 0 2px;
+      font-size: 10px;
+      height: 20px;
+    }
   }
 }
 
