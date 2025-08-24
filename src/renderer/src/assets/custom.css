@@ -22,6 +22,284 @@ user-select: auto;
 user-select: none;         /* Standard syntax */
 }
 
+/* 全局禁用不必要元素的选择功能 */
+/* 按钮和控件 */
+.ant-btn,
+.ant-switch,
+.ant-radio-button,
+.ant-checkbox-wrapper,
+.ant-select,
+.ant-input,
+.ant-input-number,
+.ant-picker,
+.ant-cascader,
+.ant-tree-select,
+.ant-transfer,
+.ant-upload,
+.ant-rate,
+.ant-slider,
+.ant-calendar-picker,
+.ant-time-picker,
+.ant-form-item-control-input,
+.ant-form-item-control-input-content {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 卡片和布局容器 */
+.ant-card,
+.ant-card-head,
+.ant-card-body,
+.ant-card-grid,
+.ant-layout,
+.ant-layout-header,
+.ant-layout-footer,
+.ant-layout-sider,
+.ant-layout-content,
+.ant-page-header,
+.ant-page-header-heading,
+.ant-page-header-content {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 菜单和导航 */
+.ant-menu,
+.ant-menu-item,
+.ant-menu-submenu,
+.ant-menu-submenu-title,
+.ant-menu-item-group,
+.ant-menu-item-group-title,
+.ant-breadcrumb,
+.ant-breadcrumb-item,
+.ant-breadcrumb-link,
+.ant-steps,
+.ant-steps-item,
+.ant-steps-item-title,
+.ant-steps-item-description {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 表格组件 */
+.ant-table,
+.ant-table-thead > tr > th,
+.ant-table-tbody > tr > td,
+.ant-table-tbody > tr:hover > td,
+.ant-table-cell,
+.ant-table-column-title,
+.ant-table-filter-trigger,
+.ant-table-pagination {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 标签和徽章 */
+.ant-tag,
+.ant-badge,
+.ant-ribbon,
+.ant-timeline,
+.ant-timeline-item,
+.ant-timeline-item-head,
+.ant-timeline-item-content {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 进度条和状态指示器 */
+.ant-progress,
+.ant-progress-text,
+.ant-progress-inner,
+.ant-progress-bg,
+.ant-spin,
+.ant-spin-text,
+.ant-spin-dot,
+.ant-spin-dot-item,
+.ant-alert,
+.ant-alert-content,
+.ant-alert-message,
+.ant-alert-description {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 模态框和弹窗 */
+.ant-modal,
+.ant-modal-header,
+.ant-modal-body,
+.ant-modal-footer,
+.ant-modal-title,
+.ant-modal-close,
+.ant-drawer,
+.ant-drawer-header,
+.ant-drawer-body,
+.ant-drawer-footer,
+.ant-drawer-title,
+.ant-drawer-close,
+.ant-popover,
+.ant-popover-inner,
+.ant-popover-inner-content,
+.ant-tooltip,
+.ant-tooltip-inner {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 图片和媒体 */
+img,
+.ant-image,
+.ant-image-img,
+.ant-image-mask,
+.ant-image-placeholder,
+.ant-avatar,
+.ant-avatar-image,
+.ant-avatar-string {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 分页组件 */
+.ant-pagination,
+.ant-pagination-item,
+.ant-pagination-prev,
+.ant-pagination-next,
+.ant-pagination-jump-prev,
+.ant-pagination-jump-next {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 下拉菜单 */
+.ant-dropdown,
+.ant-dropdown-menu,
+.ant-dropdown-menu-item,
+.ant-dropdown-menu-submenu,
+.ant-dropdown-menu-submenu-title {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 时间线 */
+.ant-timeline,
+.ant-timeline-item,
+.ant-timeline-item-head,
+.ant-timeline-item-content {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 描述列表 */
+.ant-descriptions,
+.ant-descriptions-item,
+.ant-descriptions-item-label,
+.ant-descriptions-item-content {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 统计数字 */
+.ant-statistic,
+.ant-statistic-title,
+.ant-statistic-content,
+.ant-statistic-content-value,
+.ant-statistic-content-prefix,
+.ant-statistic-content-suffix {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 空状态 */
+.ant-empty,
+.ant-empty-image,
+.ant-empty-description,
+.ant-empty-footer {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 结果页面 */
+.ant-result,
+.ant-result-icon,
+.ant-result-title,
+.ant-result-subtitle,
+.ant-result-extra {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 加载中 */
+.ant-skeleton,
+.ant-skeleton-avatar,
+.ant-skeleton-title,
+.ant-skeleton-paragraph,
+.ant-skeleton-input,
+.ant-skeleton-button,
+.ant-skeleton-image {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 可允许文本选择的元素 */
+.text-selectable,
+.ant-input,
+.ant-input textarea,
+.ant-input-number input,
+.ant-select-selection-search-input,
+.ant-calendar-picker-input,
+.ant-time-picker-input,
+.ant-cascader-input,
+.ant-tree-select-input,
+.ant-transfer-search-input,
+.ant-upload-drag-container,
+.ant-form-item-control-input .ant-input,
+.ant-form-item-control-input .ant-input textarea,
+.ant-form-item-control-input .ant-input-number input,
+.ant-modal-body .text-select,
+.ant-drawer-body .text-select,
+.ant-popover-inner-content .text-select,
+.ant-tooltip-inner .text-select,
+.ant-descriptions-item-content.text-select,
+.ant-statistic-content.text-select,
+.ant-result-subtitle.text-select,
+.ant-empty-description.text-select {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
 .c-css{
 /* 布局外廓线 */
 @apply border-2

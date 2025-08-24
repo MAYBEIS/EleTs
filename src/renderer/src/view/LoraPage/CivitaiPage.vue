@@ -2,23 +2,24 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-07-21 16:28:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-23 21:33:39
+ * @LastEditTime: 2025-08-24 09:11:09
  * @FilePath: \EleTs\src\renderer\src\view\LoraPage\CivitaiPage.vue
  * @Description: Civitai模型浏览和下载页面
 -->
 <script setup lang="ts">
 import { ref, onMounted, reactive, h, computed } from 'vue'
-import { 
-  SearchOutlined, 
-  DownloadOutlined, 
-  SettingOutlined, 
+import {
+  SearchOutlined,
+  DownloadOutlined,
+  SettingOutlined,
   ReloadOutlined,
   PlayCircleOutlined,
   PauseCircleOutlined,
   StopOutlined,
   FileSearchOutlined,
   CloudDownloadOutlined,
-  FolderOpenOutlined
+  FolderOpenOutlined,
+  CopyOutlined
 } from '@ant-design/icons-vue'
 import {
   Button,
@@ -273,9 +274,19 @@ const modelColumns: TableColumnsType = [
     key: 'name',
     width: '25%',
     customRender: ({ record }: { record: CivitaiModel }) => {
-      return h('div', [
-        h('div', { style: { fontWeight: 'bold' } }, record.name),
-        h('div', { style: { fontSize: '12px', color: '#888', marginTop: '4px' } }, record.description?.substring(0, 50) + '...')
+      return h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } }, [
+        h('div', { style: { flex: 1 } }, [
+          h('div', { style: { fontWeight: 'bold' } }, record.name),
+          h('div', { style: { fontSize: '12px', color: '#888', marginTop: '4px' } }, record.description?.substring(0, 50) + '...')
+        ]),
+        h(Button, {
+          type: 'text',
+          size: 'small',
+          icon: h(CopyOutlined),
+          onClick: () => copyModelId(record.id, record.name),
+          style: { marginLeft: '8px', flexShrink: 0 },
+          title: '复制模型ID'
+        })
       ])
     }
   },
@@ -1229,6 +1240,48 @@ const stripHtmlTags = (html: string): string => {
   tempDiv.innerHTML = html;
   // 返回纯文本内容
   return tempDiv.textContent || tempDiv.innerText || '';
+}
+
+// 复制模型ID
+const copyModelId = async (modelId: string, modelName: string) => {
+  try {
+    // 使用现代的Clipboard API
+    await navigator.clipboard.writeText(modelId)
+    
+    // 显示复制成功提示
+    Modal.success({
+      title: '复制成功',
+      content: `模型 "${modelName}" 的ID已复制到剪贴板`,
+      okText: '确定'
+    })
+  } catch (error) {
+    // 如果现代API不可用，使用传统方法
+    const textArea = document.createElement('textarea')
+    textArea.value = modelId
+    document.body.appendChild(textArea)
+    textArea.select()
+    
+    try {
+      document.execCommand('copy')
+      document.body.removeChild(textArea)
+      
+      // 显示复制成功提示
+      Modal.success({
+        title: '复制成功',
+        content: `模型 "${modelName}" 的ID已复制到剪贴板`,
+        okText: '确定'
+      })
+    } catch (fallbackError) {
+      document.body.removeChild(textArea)
+      
+      // 显示复制失败提示
+      Modal.error({
+        title: '复制失败',
+        content: '无法复制到剪贴板，请手动复制',
+        okText: '确定'
+      })
+    }
+  }
 }
 
 // 更新模态框宽度
