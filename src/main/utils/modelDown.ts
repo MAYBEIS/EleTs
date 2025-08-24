@@ -153,11 +153,12 @@ export class ModelDownloader {
         throw new Error(dirCheck.error || 'Failed to create download directory');
       }
       
-      // 如果有模型元数据，则直接使用统一命名格式
+      // 如果有模型元数据，则直接使用统一命名格式（参考automa.js的命名逻辑）
       let finalFilename = filename;
       if (modelMetadata) {
-        const baseName = path.basename(filename, path.extname(filename));
-        const validName = this.convertToValidFilename(`${baseName}--${modelMetadata.version}--${modelMetadata.hash}`);
+        // 使用Title + "--" + Version + "--" + Hash的格式
+        const name1 = `${modelMetadata.title}--${modelMetadata.version}--${modelMetadata.hash}`;
+        const validName = this.convertToValidFilename(name1);
         finalFilename = validName + path.extname(filename);
       }
       
@@ -303,8 +304,10 @@ export class ModelDownloader {
             
             // 计算进度
             let progress = 0;
-            if (totalSize > 0) {
+            if (totalSize > 0 && downloadInfo.downloadedSize <= totalSize) {
               progress = Math.round((downloadInfo.downloadedSize / totalSize) * 100);
+              // 确保进度不超过100%
+              progress = Math.min(progress, 100);
             }
             
             // 调用进度回调
@@ -528,8 +531,17 @@ export class ModelDownloader {
         throw new Error(dirCheck.error || 'Failed to create download directory');
       }
       
+      // 如果有模型元数据，则直接使用统一命名格式（参考automa.js的命名逻辑）
+      let finalFilename = filename;
+      if (modelMetadata) {
+        // 使用Title + "--" + Version + "--" + Hash的格式
+        const name1 = `${modelMetadata.title}--${modelMetadata.version}--${modelMetadata.hash}`;
+        const validName = this.convertToValidFilename(name1);
+        finalFilename = validName + path.extname(filename);
+      }
+      
       // 处理文件名冲突
-      const uniqueFilename = await this.generateUniqueFilename(filename);
+      const uniqueFilename = await this.generateUniqueFilename(finalFilename);
       const filePath = path.join(this.config.downloadDirectory, uniqueFilename);
       
       // 检查文件系统权限
@@ -709,8 +721,10 @@ export class ModelDownloader {
             
             // 计算进度
             let progress = 0;
-            if (totalSize > 0) {
+            if (totalSize > 0 && downloadInfo.downloadedSize <= totalSize) {
               progress = Math.round((downloadInfo.downloadedSize / totalSize) * 100);
+              // 确保进度不超过100%
+              progress = Math.min(progress, 100);
             }
             
             // 调用进度回调
@@ -965,6 +979,9 @@ export class ModelDownloader {
     const downloadInfo = this.activeDownloads.get(taskId);
     if (downloadInfo) {
       try {
+        // 先标记模型文件下载完成，但不立即调用完成回调
+        console.log('模型文件下载完成，开始生成附加文件:', downloadInfo.filePath);
+        
         // 获取下载任务信息
         const task = this.getDownloadTask(taskId);
         if (task && task.modelMetadata) {
@@ -972,12 +989,12 @@ export class ModelDownloader {
           await this.generateAdditionalFiles(task, downloadInfo.filePath);
         }
         
-        // 调用完成回调
+        // 所有操作完成后，才调用完成回调
         if (downloadInfo.completionCallback) {
           downloadInfo.completionCallback(true, downloadInfo.filePath);
         }
         
-        console.log('模型下载完成:', downloadInfo.filePath);
+        console.log('模型下载及附加文件生成完成:', downloadInfo.filePath);
       } catch (error) {
         console.error('处理下载完成时出错:', error);
         
@@ -1070,11 +1087,29 @@ export class ModelDownloader {
         return { success: false, error: 'Download directory not configured' };
       }
 
+      // 规范化路径，处理Unicode字符
+      const normalizedPath = path.normalize(this.config.downloadDirectory);
+      
       // 检查目录是否存在
-      if (!fs.existsSync(this.config.downloadDirectory)) {
-        // 创建目录（包括父目录）
-        await fs.promises.mkdir(this.config.downloadDirectory, { recursive: true });
-        console.log('创建下载目录:', this.config.downloadDirectory);
+      if (!fs.existsSync(normalizedPath)) {
+        try {
+          // 创建目录（包括父目录）
+          await fs.promises.mkdir(normalizedPath, { recursive: true });
+          console.log('创建下载目录:', normalizedPath);
+        } catch (mkdirError) {
+          console.error('创建下载目录失败:', mkdirError);
+          return { success: false, error: mkdirError instanceof Error ? mkdirError.message : 'Failed to create directory' };
+        }
+      }
+
+      // 验证目录是否可写
+      try {
+        const testFile = path.join(normalizedPath, '.write_test');
+        await fs.promises.writeFile(testFile, 'test');
+        await fs.promises.unlink(testFile);
+      } catch (writeError) {
+        console.error('下载目录不可写:', writeError);
+        return { success: false, error: 'Download directory is not writable' };
       }
 
       return { success: true };
@@ -1091,13 +1126,21 @@ export class ModelDownloader {
    */
   private async checkFilePermissions(filePath: string): Promise<{ success: boolean; error?: string }> {
     try {
+      // 规范化路径，处理Unicode字符
+      const normalizedPath = path.normalize(filePath);
+      const dirPath = path.dirname(normalizedPath);
+      
+      // 检查目录是否存在
+      if (!fs.existsSync(dirPath)) {
+        return { success: false, error: 'Directory does not exist' };
+      }
+      
       // 检查目录权限
-      const dirPath = path.dirname(filePath);
       await fs.promises.access(dirPath, fs.constants.W_OK);
       
       // 如果文件已存在，检查文件权限
-      if (fs.existsSync(filePath)) {
-        await fs.promises.access(filePath, fs.constants.W_OK);
+      if (fs.existsSync(normalizedPath)) {
+        await fs.promises.access(normalizedPath, fs.constants.W_OK);
       }
       
       return { success: true };
@@ -1113,7 +1156,9 @@ export class ModelDownloader {
    * @returns Promise<string> 唯一的文件名
    */
   private async generateUniqueFilename(filename: string): Promise<string> {
-    const filePath = path.join(this.config.downloadDirectory, filename);
+    // 规范化下载目录路径，处理Unicode字符
+    const normalizedDir = path.normalize(this.config.downloadDirectory);
+    const filePath = path.join(normalizedDir, filename);
     
     // 如果文件不存在，直接返回原文件名
     if (!fs.existsSync(filePath)) {
@@ -1126,7 +1171,7 @@ export class ModelDownloader {
     let counter = 1;
     let uniqueFilename = filename;
     
-    while (fs.existsSync(path.join(this.config.downloadDirectory, uniqueFilename))) {
+    while (fs.existsSync(path.join(normalizedDir, uniqueFilename))) {
       uniqueFilename = `${name} (${counter})${ext}`;
       counter++;
     }
@@ -1150,21 +1195,22 @@ export class ModelDownloader {
       const modelDir = path.dirname(modelFilePath);
       const modelBaseName = path.basename(modelFilePath, path.extname(modelFilePath));
       
-      // 生成有效的文件名
-      const validFilename = this.convertToValidFilename(`${modelBaseName}--${modelMetadata.version}--${modelMetadata.hash}`);
+      // 使用与automa.js相同的命名逻辑
+      // 注意：模型文件已经使用了正确的命名，所以直接使用modelBaseName
+      const filename = modelBaseName;
       
       // 1. 生成TXT文件
-      await this.generateTxtFile(modelDir, validFilename, modelMetadata);
+      await this.generateTxtFile(modelDir, filename, modelMetadata);
       
       // 2. 生成JSON文件
-      await this.generateJsonFile(modelDir, validFilename, modelMetadata);
+      await this.generateJsonFile(modelDir, filename, modelMetadata);
       
       // 3. 生成MD文件
-      await this.generateMdFile(modelDir, validFilename, modelMetadata);
+      await this.generateMdFile(modelDir, filename, modelMetadata);
       
       // 4. 下载图像文件
       if (modelMetadata.imageUrl) {
-        await this.downloadImageFile(modelDir, validFilename, modelMetadata.imageUrl);
+        await this.downloadImageFile(modelDir, filename, modelMetadata.imageUrl);
       }
       
       console.log('所有附加文件生成完成');
@@ -1182,6 +1228,7 @@ export class ModelDownloader {
    */
   private async generateTxtFile(dir: string, filename: string, metadata: any): Promise<void> {
     try {
+      // 使用与automa.js相同的内容格式
       const txtContent = `${metadata.title}\n\nC站网址：\n${metadata.currentUrl || ''}\n模型ID:\n${metadata.hash}\nVersion:\n${metadata.version}\n使用TIP：${metadata.usageTips || ''}\n触发词：\n${metadata.triggerWords.join(', ')}\n版本号：${metadata.version}\n\n\n${metadata.description}`;
       
       const txtFilePath = path.join(dir, `${filename}.txt`);
@@ -1202,6 +1249,7 @@ export class ModelDownloader {
    */
   private async generateJsonFile(dir: string, filename: string, metadata: any): Promise<void> {
     try {
+      // 使用与automa.js相同的内容格式
       let triggerWordsString = "";
       if (metadata.triggerWords && Array.isArray(metadata.triggerWords) && metadata.triggerWords.length > 0) {
         triggerWordsString = " {" + metadata.triggerWords.join(',') + "}";
@@ -1395,12 +1443,28 @@ ${metadata.description}
    * @returns 有效的文件名
    */
   private convertToValidFilename(text: string): string {
+    // 确保文本是字符串类型
+    if (typeof text !== 'string') {
+      text = String(text);
+    }
+    
     // 先去除空格
     let result = text.replace(/\s+/g, '');
     
     // 替换非法文件名字符为下划线
     // Windows 文件名不允许包含 \ / : * ? " < > |
     result = result.replace(/[\\/:*?"<>|]+/g, '_');
+    
+    // 移除控制字符和不可见字符
+    result = result.replace(/[\x00-\x1F\x7F-\x9F]/g, '');
+    
+    // 确保文件名不以点开头或结尾
+    result = result.replace(/^\.+|\.+$/g, '');
+    
+    // 确保文件名不为空
+    if (result.length === 0) {
+      result = 'unnamed_file';
+    }
     
     return result;
   }
@@ -1430,8 +1494,10 @@ class ProgressTransformStream extends Transform {
       
       // 计算进度
       let progress = 0;
-      if (downloadInfo.totalSize > 0) {
+      if (downloadInfo.totalSize > 0 && this.downloadedBytes <= downloadInfo.totalSize) {
         progress = Math.round((this.downloadedBytes / downloadInfo.totalSize) * 100);
+        // 确保进度不超过100%
+        progress = Math.min(progress, 100);
       }
       
       // 更新进度
