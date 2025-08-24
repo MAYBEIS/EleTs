@@ -11,7 +11,6 @@ import * as path from 'path';
 import { pipeline, Transform } from 'stream';
 import { promisify } from 'util';
 import { createWriteStream } from 'fs';
-import axios from 'axios';
 
 // 重试函数
 async function retryRequest<T>(
@@ -145,6 +144,97 @@ export class ModelDownloader {
   }
 
   /**
+   * 保存模型元数据到metaData文件夹
+   * @param modelMetadata 模型元数据
+   * @returns Promise<string> 生成的文件名
+   */
+  private async saveModelMetadata(modelMetadata: any): Promise<string> {
+    try {
+      // 确保元数据文件夹存在
+      const metaDataDir = path.join(app.getPath('userData'), 'Temp', 'metaData');
+      if (!fs.existsSync(metaDataDir)) {
+        fs.mkdirSync(metaDataDir, { recursive: true });
+      }
+
+      // 生成文件名（按照automa.js的命名规则）
+      const name1 = `${modelMetadata.title}--${modelMetadata.version}--${modelMetadata.hash}`;
+      const filename = this.convertToValidFilename(name1);
+      // 注意：automa.js中元数据文件名不包含类型前缀，直接使用filename
+      const baseFilename = filename;
+
+      // 1. 保存JSON文件
+      const jsonData = {
+        "description": modelMetadata.type + (modelMetadata.triggerWords ? " {" + modelMetadata.triggerWords.join(',') + "}" : "") + "\n" + (modelMetadata.currentUrl || ''),
+        "activation text": modelMetadata.triggerWords ? " {" + modelMetadata.triggerWords.join(',') + "}" : "",
+        "notes": modelMetadata.description
+      };
+
+      const jsonContent = JSON.stringify(jsonData, null, 2);
+      const jsonFilePath = path.join(metaDataDir, `${baseFilename}.json`);
+      fs.writeFileSync(jsonFilePath, jsonContent, 'utf8');
+
+      // 2. 保存TXT文件
+      const txtContent = `${modelMetadata.title}\n\nC站网址：\n${modelMetadata.currentUrl || ''}\n模型ID:\n${modelMetadata.hash}\nVersion:\n${modelMetadata.version}\n使用TIP：${modelMetadata.usageTips || ''}\n触发词：\n${modelMetadata.triggerWords ? modelMetadata.triggerWords.join(', ') : ''}\n版本号：${modelMetadata.version}\n\n\n${modelMetadata.description}`;
+      const txtFilePath = path.join(metaDataDir, `${baseFilename}.txt`);
+      fs.writeFileSync(txtFilePath, txtContent, 'utf8');
+
+      // 3. 下载图片文件（如果有）
+      if (modelMetadata.imageUrl) {
+        try {
+          const imagePath = path.join(metaDataDir, `${baseFilename}.png`);
+          
+          // 使用Electron的net模块下载图片
+          const request = net.request({
+            url: modelMetadata.imageUrl,
+            method: 'GET'
+          });
+          
+          request.setHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+          
+          const fileStream = createWriteStream(imagePath);
+          
+          request.on('response', (response: any) => {
+            if (response.statusCode < 200 || response.statusCode >= 300) {
+              fileStream.destroy();
+              console.error('下载图片失败:', response.statusCode);
+              return;
+            }
+            
+            response.on('data', (chunk: Buffer) => {
+              fileStream.write(chunk);
+            });
+            
+            response.on('end', () => {
+              fileStream.end();
+              console.log('图片下载完成:', imagePath);
+            });
+            
+            response.on('error', (error: Error) => {
+              console.error('下载图片响应错误:', error);
+              fileStream.destroy();
+            });
+          });
+          
+          request.on('error', (error: Error) => {
+            console.error('下载图片请求错误:', error);
+            fileStream.destroy();
+          });
+          
+          request.end();
+        } catch (imageError) {
+          console.error('下载图片文件失败:', imageError);
+        }
+      }
+
+      console.log('元数据保存完成:', baseFilename);
+      return baseFilename;
+    } catch (error) {
+      console.error('保存元数据失败:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 下载模型文件
    * @param taskId 任务ID
    * @param url 下载URL
@@ -179,6 +269,12 @@ export class ModelDownloader {
         // 确保模型文件使用.safetensors扩展名
         finalFilename = validName + '.safetensors';
         console.log('使用命名规范重命名模型文件:', finalFilename);
+      } else {
+        // 如果没有模型元数据，确保文件有.safetensors扩展名
+        if (!finalFilename.endsWith('.safetensors')) {
+          finalFilename = finalFilename + '.safetensors';
+          console.log('添加.safetensors扩展名:', finalFilename);
+        }
       }
       
       // 处理文件名冲突
@@ -739,6 +835,12 @@ export class ModelDownloader {
         // 确保模型文件使用.safetensors扩展名
         finalFilename = validName + '.safetensors';
         console.log('使用命名规范重命名恢复下载的模型文件:', finalFilename);
+      } else {
+        // 如果没有模型元数据，确保文件有.safetensors扩展名
+        if (!finalFilename.endsWith('.safetensors')) {
+          finalFilename = finalFilename + '.safetensors';
+          console.log('添加.safetensors扩展名:', finalFilename);
+        }
       }
       
       // 处理文件名冲突
