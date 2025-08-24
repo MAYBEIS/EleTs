@@ -176,6 +176,7 @@ export class ModelDownloader {
         const name1 = `${modelMetadata.title}--${modelMetadata.version}--${modelMetadata.hash}`;
         const validName = this.convertToValidFilename(name1);
         finalFilename = validName + path.extname(filename);
+        console.log('使用命名规范重命名模型文件:', finalFilename);
       }
       
       // 处理文件名冲突
@@ -267,6 +268,19 @@ export class ModelDownloader {
 
       const { proxySettings } = this.config;
       
+      // 如果启用了自定义代理
+      if (proxySettings.enabled && proxySettings.server) {
+        console.log('使用自定义代理下载模型:', proxySettings.server);
+        // 使用node-fetch配合代理代理
+        return await this.downloadWithProxy(taskId, url);
+      }
+      
+      // 对于系统代理和直接连接，使用AbortController增强取消功能
+      const controller = new AbortController();
+      
+      // 保存AbortController以便取消下载
+      downloadInfo.abortController = controller;
+      
       // 根据代理设置创建请求
       let request: any;
       
@@ -277,12 +291,6 @@ export class ModelDownloader {
           url: url,
           method: 'GET'
         });
-      }
-      // 如果启用了自定义代理
-      else if (proxySettings.enabled && proxySettings.server) {
-        console.log('使用自定义代理下载模型:', proxySettings.server);
-        // 使用node-fetch配合代理代理
-        return await this.downloadWithProxy(taskId, url);
       }
       // 直接连接（无代理）
       else {
@@ -296,6 +304,35 @@ export class ModelDownloader {
       // 设置请求头
       request.setHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
       
+      // 监听AbortController信号 - 在发送请求之前设置
+      controller.signal.addEventListener('abort', () => {
+        console.log('下载请求被AbortController取消');
+        try {
+          // 强制中断请求和响应
+          if (request) {
+            if (request.destroy) {
+              request.destroy();
+            } else if (request.abort) {
+              request.abort();
+            } else if (request.cancel) {
+              request.cancel();
+            }
+          }
+          
+          // 立即关闭文件流
+          const currentDownloadInfo = this.activeDownloads.get(taskId);
+          if (currentDownloadInfo && currentDownloadInfo.fileStream) {
+            try {
+              currentDownloadInfo.fileStream.destroy();
+            } catch (streamError) {
+              console.error('关闭文件流失败:', streamError);
+            }
+          }
+        } catch (error) {
+          console.error('取消下载时发生错误:', error);
+        }
+      });
+      
       // 监听响应
       request.on('response', (response: any) => {
         console.log('收到响应:', response.statusCode);
@@ -304,8 +341,12 @@ export class ModelDownloader {
         const currentDownloadInfo = this.activeDownloads.get(taskId);
         if (!currentDownloadInfo || currentDownloadInfo.isCancelled || currentDownloadInfo.isDestroyed) {
           console.log('下载已取消或已销毁，停止处理响应');
-          response.destroy();
-          request.destroy();
+          try {
+            response.destroy();
+            request.destroy();
+          } catch (error) {
+            console.error('销毁响应和请求时出错:', error);
+          }
           return;
         }
         
@@ -331,8 +372,13 @@ export class ModelDownloader {
             // 检查是否已取消或已销毁
             if (downloadInfo.isCancelled || downloadInfo.isDestroyed) {
               console.log('下载已取消或已销毁，停止写入数据');
-              response.destroy();
-              request.destroy();
+              try {
+                response.destroy();
+                request.destroy();
+                downloadInfo.fileStream.destroy();
+              } catch (error) {
+                console.error('销毁响应、请求和文件流时出错:', error);
+              }
               return;
             }
             
@@ -341,8 +387,13 @@ export class ModelDownloader {
               downloadInfo.fileStream.write(chunk);
             } catch (writeError) {
               console.error('写入文件失败:', writeError);
-              response.destroy();
-              request.destroy();
+              try {
+                response.destroy();
+                request.destroy();
+                downloadInfo.fileStream.destroy();
+              } catch (error) {
+                console.error('销毁响应、请求和文件流时出错:', error);
+              }
               this.handleDownloadError(taskId, 'Failed to write to file');
               return;
             }
@@ -376,8 +427,13 @@ export class ModelDownloader {
             // 检查是否已取消或已销毁
             if (downloadInfo.isCancelled || downloadInfo.isDestroyed) {
               console.log('下载已取消或已销毁，不处理完成事件');
-              response.destroy();
-              request.destroy();
+              try {
+                response.destroy();
+                request.destroy();
+                downloadInfo.fileStream.destroy();
+              } catch (error) {
+                console.error('销毁响应、请求和文件流时出错:', error);
+              }
               return;
             }
             
@@ -455,6 +511,12 @@ export class ModelDownloader {
         throw new Error('Download task not found');
       }
 
+      // 检查是否已取消或已销毁
+      if (downloadInfo.isCancelled || downloadInfo.isDestroyed) {
+        console.log('下载已取消或已销毁，不执行代理下载');
+        return false;
+      }
+
       const { proxySettings } = this.config;
       if (!proxySettings.server) {
         throw new Error('Proxy server not configured');
@@ -488,6 +550,12 @@ export class ModelDownloader {
       let response;
       try {
         response = await retryRequest(async () => {
+          // 检查是否已取消或已销毁
+          const currentDownloadInfo = this.activeDownloads.get(taskId);
+          if (currentDownloadInfo && (currentDownloadInfo.isCancelled || currentDownloadInfo.isDestroyed)) {
+            throw new Error('Download cancelled or destroyed');
+          }
+          
           // 使用主AbortController而不是创建新的
           const result = await nodeFetch(url, {
             method: 'GET',
@@ -505,6 +573,13 @@ export class ModelDownloader {
         clearTimeout(timeoutId);
       }
       
+      // 再次检查是否已取消或已销毁
+      const currentDownloadInfo = this.activeDownloads.get(taskId);
+      if (currentDownloadInfo && (currentDownloadInfo.isCancelled || currentDownloadInfo.isDestroyed)) {
+        console.log('下载已取消或已销毁，停止处理代理下载响应');
+        return false;
+      }
+      
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -514,9 +589,8 @@ export class ModelDownloader {
       const totalSize = contentLength ? parseInt(contentLength, 10) : 0;
       
       // 更新下载信息
-      const updatedDownloadInfo = this.activeDownloads.get(taskId);
-      if (updatedDownloadInfo) {
-        updatedDownloadInfo.totalSize = totalSize;
+      if (currentDownloadInfo) {
+        currentDownloadInfo.totalSize = totalSize;
       }
       
       // 创建文件写入流
@@ -525,12 +599,29 @@ export class ModelDownloader {
       // 创建进度跟踪流
       const progressStream = new ProgressTransformStream(taskId, this);
       
-      // 使用pipeline处理流
-      await pipelineAsync(
-        response.body,
-        progressStream,
-        fileStream
-      );
+      // 使用pipeline处理流，但添加取消检查
+      try {
+        await pipelineAsync(
+          response.body,
+          progressStream,
+          fileStream
+        );
+      } catch (pipelineError) {
+        // 检查是否是因为取消而导致的错误
+        const currentDownloadInfo = this.activeDownloads.get(taskId);
+        if (currentDownloadInfo && (currentDownloadInfo.isCancelled || currentDownloadInfo.isDestroyed)) {
+          console.log('下载已取消或已销毁，停止处理代理下载流');
+          return false;
+        }
+        throw pipelineError;
+      }
+      
+      // 再次检查是否已取消或已销毁
+      const finalDownloadInfo = this.activeDownloads.get(taskId);
+      if (finalDownloadInfo && (finalDownloadInfo.isCancelled || finalDownloadInfo.isDestroyed)) {
+        console.log('下载已取消或已销毁，不处理代理下载完成');
+        return false;
+      }
       
       // 下载完成处理
       this.handleDownloadCompletion(taskId);
@@ -606,6 +697,7 @@ export class ModelDownloader {
         const name1 = `${modelMetadata.title}--${modelMetadata.version}--${modelMetadata.hash}`;
         const validName = this.convertToValidFilename(name1);
         finalFilename = validName + path.extname(filename);
+        console.log('使用命名规范重命名恢复下载的模型文件:', finalFilename);
       }
       
       // 处理文件名冲突
@@ -706,8 +798,18 @@ export class ModelDownloader {
 
       const { proxySettings } = this.config;
       
-      // 根据代理设置创建请求
-      let request: any;
+      // 如果启用了自定义代理
+      if (proxySettings.enabled && proxySettings.server) {
+        console.log('使用自定义代理恢复下载模型:', proxySettings.server);
+        // 使用node-fetch配合代理代理
+        return await this.resumeDownloadWithProxy(taskId, url, rangeStart);
+      }
+      
+      // 对于系统代理和直接连接，使用AbortController增强取消功能
+      const controller = new AbortController();
+      
+      // 保存AbortController以便取消下载
+      downloadInfo.abortController = controller;
       
       // 设置请求头，支持断点续传
       const headers: any = {
@@ -719,6 +821,9 @@ export class ModelDownloader {
         headers['Range'] = `bytes=${rangeStart}-`;
       }
       
+      // 根据代理设置创建请求
+      let request: any;
+      
       // 如果启用了系统代理
       if (proxySettings.useSystemProxy) {
         console.log('使用系统代理恢复下载模型');
@@ -727,12 +832,6 @@ export class ModelDownloader {
           method: 'GET',
           headers: headers
         });
-      }
-      // 如果启用了自定义代理
-      else if (proxySettings.enabled && proxySettings.server) {
-        console.log('使用自定义代理恢复下载模型:', proxySettings.server);
-        // 使用node-fetch配合代理代理
-        return await this.resumeDownloadWithProxy(taskId, url, rangeStart);
       }
       // 直接连接（无代理）
       else {
@@ -744,6 +843,35 @@ export class ModelDownloader {
         });
       }
       
+      // 监听AbortController信号 - 在发送请求之前设置
+      controller.signal.addEventListener('abort', () => {
+        console.log('恢复下载请求被AbortController取消');
+        try {
+          // 强制中断请求和响应
+          if (request) {
+            if (request.destroy) {
+              request.destroy();
+            } else if (request.abort) {
+              request.abort();
+            } else if (request.cancel) {
+              request.cancel();
+            }
+          }
+          
+          // 立即关闭文件流
+          const currentDownloadInfo = this.activeDownloads.get(taskId);
+          if (currentDownloadInfo && currentDownloadInfo.fileStream) {
+            try {
+              currentDownloadInfo.fileStream.destroy();
+            } catch (streamError) {
+              console.error('关闭文件流失败:', streamError);
+            }
+          }
+        } catch (error) {
+          console.error('取消恢复下载时发生错误:', error);
+        }
+      });
+      
       // 监听响应
       request.on('response', (response: any) => {
         console.log('收到恢复下载响应:', response.statusCode);
@@ -752,8 +880,12 @@ export class ModelDownloader {
         const currentDownloadInfo = this.activeDownloads.get(taskId);
         if (!currentDownloadInfo || currentDownloadInfo.isCancelled || currentDownloadInfo.isDestroyed) {
           console.log('下载已取消或已销毁，停止处理恢复下载响应');
-          response.destroy();
-          request.destroy();
+          try {
+            response.destroy();
+            request.destroy();
+          } catch (error) {
+            console.error('销毁响应和请求时出错:', error);
+          }
           return;
         }
         
@@ -800,8 +932,13 @@ export class ModelDownloader {
             // 检查是否已取消或已销毁
             if (downloadInfo.isCancelled || downloadInfo.isDestroyed) {
               console.log('下载已取消或已销毁，停止写入恢复下载数据');
-              response.destroy();
-              request.destroy();
+              try {
+                response.destroy();
+                request.destroy();
+                downloadInfo.fileStream.destroy();
+              } catch (error) {
+                console.error('销毁响应、请求和文件流时出错:', error);
+              }
               return;
             }
             
@@ -810,8 +947,13 @@ export class ModelDownloader {
               downloadInfo.fileStream.write(chunk);
             } catch (writeError) {
               console.error('写入文件失败:', writeError);
-              response.destroy();
-              request.destroy();
+              try {
+                response.destroy();
+                request.destroy();
+                downloadInfo.fileStream.destroy();
+              } catch (error) {
+                console.error('销毁响应、请求和文件流时出错:', error);
+              }
               this.handleDownloadError(taskId, 'Failed to write to file');
               return;
             }
@@ -845,8 +987,13 @@ export class ModelDownloader {
             // 检查是否已取消或已销毁
             if (downloadInfo.isCancelled || downloadInfo.isDestroyed) {
               console.log('下载已取消或已销毁，不处理恢复下载完成事件');
-              response.destroy();
-              request.destroy();
+              try {
+                response.destroy();
+                request.destroy();
+                downloadInfo.fileStream.destroy();
+              } catch (error) {
+                console.error('销毁响应、请求和文件流时出错:', error);
+              }
               return;
             }
             
@@ -925,6 +1072,12 @@ export class ModelDownloader {
         throw new Error('Download task not found');
       }
 
+      // 检查是否已取消或已销毁
+      if (downloadInfo.isCancelled || downloadInfo.isDestroyed) {
+        console.log('下载已取消或已销毁，不执行代理恢复下载');
+        return false;
+      }
+
       const { proxySettings } = this.config;
       if (!proxySettings.server) {
         throw new Error('Proxy server not configured');
@@ -968,6 +1121,12 @@ export class ModelDownloader {
       let response;
       try {
         response = await retryRequest(async () => {
+          // 检查是否已取消或已销毁
+          const currentDownloadInfo = this.activeDownloads.get(taskId);
+          if (currentDownloadInfo && (currentDownloadInfo.isCancelled || currentDownloadInfo.isDestroyed)) {
+            throw new Error('Download cancelled or destroyed');
+          }
+          
           // 使用主AbortController而不是创建新的
           const result = await nodeFetch(url, {
             method: 'GET',
@@ -981,6 +1140,13 @@ export class ModelDownloader {
         throw fetchError;
       } finally {
         clearTimeout(timeoutId);
+      }
+      
+      // 再次检查是否已取消或已销毁
+      const currentDownloadInfo = this.activeDownloads.get(taskId);
+      if (currentDownloadInfo && (currentDownloadInfo.isCancelled || currentDownloadInfo.isDestroyed)) {
+        console.log('下载已取消或已销毁，停止处理代理恢复下载响应');
+        return false;
       }
       
       if (!response.ok && response.status !== 206 && response.status !== 416) {
@@ -1012,9 +1178,8 @@ export class ModelDownloader {
       }
       
       // 更新下载信息
-      const updatedDownloadInfo = this.activeDownloads.get(taskId);
-      if (updatedDownloadInfo) {
-        updatedDownloadInfo.totalSize = totalSize;
+      if (currentDownloadInfo) {
+        currentDownloadInfo.totalSize = totalSize;
       }
       
       // 创建文件写入流
@@ -1023,12 +1188,29 @@ export class ModelDownloader {
       // 创建进度跟踪流
       const progressStream = new ProgressTransformStream(taskId, this);
       
-      // 使用pipeline处理流
-      await pipelineAsync(
-        response.body,
-        progressStream,
-        fileStream
-      );
+      // 使用pipeline处理流，但添加取消检查
+      try {
+        await pipelineAsync(
+          response.body,
+          progressStream,
+          fileStream
+        );
+      } catch (pipelineError) {
+        // 检查是否是因为取消而导致的错误
+        const currentDownloadInfo = this.activeDownloads.get(taskId);
+        if (currentDownloadInfo && (currentDownloadInfo.isCancelled || currentDownloadInfo.isDestroyed)) {
+          console.log('下载已取消或已销毁，停止处理代理恢复下载流');
+          return false;
+        }
+        throw pipelineError;
+      }
+      
+      // 再次检查是否已取消或已销毁
+      const finalDownloadInfo = this.activeDownloads.get(taskId);
+      if (finalDownloadInfo && (finalDownloadInfo.isCancelled || finalDownloadInfo.isDestroyed)) {
+        console.log('下载已取消或已销毁，不处理代理恢复下载完成');
+        return false;
+      }
       
       // 下载完成处理
       this.handleDownloadCompletion(taskId);
@@ -1057,6 +1239,10 @@ export class ModelDownloader {
       downloadInfo.isCancelled = true;
       console.log('标记下载任务为已取消:', taskId);
       
+      // 立即标记为已销毁，确保所有操作都会停止
+      downloadInfo.isDestroyed = true;
+      console.log('标记下载任务为已销毁:', taskId);
+      
       // 取消请求 - 处理不同类型的请求对象
       if (downloadInfo.abortController) {
         try {
@@ -1067,7 +1253,8 @@ export class ModelDownloader {
           console.error('AbortController取消失败:', abortError);
         }
       }
-      else if (downloadInfo.request) {
+      
+      if (downloadInfo.request) {
         try {
           // 检查是否是标准的Electron请求对象
           if (downloadInfo.request.cancel) {
@@ -1093,10 +1280,6 @@ export class ModelDownloader {
           console.error('取消请求失败:', cancelError);
         }
       }
-      
-      // 标记为已销毁，确保所有操作都会停止
-      downloadInfo.isDestroyed = true;
-      console.log('标记下载任务为已销毁:', taskId);
       
       // 关闭并删除文件
       if (downloadInfo.fileStream) {
@@ -1357,8 +1540,14 @@ export class ModelDownloader {
       const modelBaseName = path.basename(modelFilePath, path.extname(modelFilePath));
       
       // 使用与automa.js相同的命名逻辑
-      // 注意：模型文件已经使用了正确的命名，所以直接使用modelBaseName
-      const filename = modelBaseName;
+      // 如果有模型元数据，则重新生成文件名，确保附加文件与模型文件命名一致
+      let filename = modelBaseName;
+      if (modelMetadata) {
+        // 使用Title + "--" + Version + "--" + Hash的格式
+        const name1 = `${modelMetadata.title}--${modelMetadata.version}--${modelMetadata.hash}`;
+        filename = this.convertToValidFilename(name1);
+        console.log('使用命名规范重命名附加文件:', filename);
+      }
       
       // 1. 生成TXT文件
       await this.generateTxtFile(modelDir, filename, modelMetadata);
@@ -1693,5 +1882,16 @@ class ProgressTransformStream extends Transform {
     }
     
     callback(null, chunk);
+  }
+  
+  _flush(callback: Function) {
+    // 在流结束时检查是否已取消或已销毁
+    const downloadInfo = (this.downloader as any).activeDownloads.get(this.taskId);
+    if (!downloadInfo || downloadInfo.isCancelled || downloadInfo.isDestroyed) {
+      console.log('下载已取消或已销毁，停止处理数据流');
+      callback(new Error('Download cancelled or destroyed'));
+      return;
+    }
+    callback();
   }
 }

@@ -897,6 +897,17 @@ export function initAiIpc() {
 
       const downloadItem = downloadQueue[downloadIndex];
       
+      // 如果ModelDownloader已初始化，先尝试取消实际的下载任务
+      if (modelDownloader) {
+        try {
+          const cancelResult = modelDownloader.cancelDownload(modelId);
+          console.log('ModelDownloader cancel result:', cancelResult);
+        } catch (cancelError) {
+          console.error('ModelDownloader cancel failed:', cancelError);
+          // 即使取消失败，我们仍然要从队列中移除该项
+        }
+      }
+      
       // 从队列中移除
       downloadQueue.splice(downloadIndex, 1);
       
