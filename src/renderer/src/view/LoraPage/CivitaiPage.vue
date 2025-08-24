@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-07-21 16:28:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-24 09:30:25
+ * @LastEditTime: 2025-08-24 09:36:06
  * @FilePath: \EleTs\src\renderer\src\view\LoraPage\CivitaiPage.vue
  * @Description: Civitai模型浏览和下载页面
 -->
@@ -2054,6 +2054,13 @@ onMounted(async () => {
 .pagination-section {
   margin-top: 16px;
   text-align: right;
+  position: sticky;
+  bottom: 0;
+  background: white;
+  padding: 8px 0;
+  border-top: 1px solid #f0f0f0;
+  z-index: 10;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
 }
 
 
