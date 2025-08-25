@@ -159,11 +159,6 @@ export class CivitaiClient {
       ...options?.headers
     };
 
-    // 配置代理
-    if (options?.proxy) {
-      this.setProxy(options.proxy);
-    }
-
     // 创建 Axios 实例
     this.axiosInstance = axios.create({
       baseURL: this.baseUrl,
@@ -171,6 +166,11 @@ export class CivitaiClient {
       httpsAgent: this.proxyAgent,
       timeout: 30000,
     });
+
+    // 配置代理
+    if (options?.proxy) {
+      this.setProxy(options.proxy);
+    }
   }
 
   /**
@@ -180,7 +180,9 @@ export class CivitaiClient {
   public setProxy(proxy: ProxyConfig): void {
     const proxyUrl = `${proxy.protocol || 'http'}://${proxy.host}:${proxy.port}`;
     this.proxyAgent = new HttpsProxyAgent(proxyUrl);
-    this.axiosInstance.defaults.httpsAgent = this.proxyAgent;
+    if (this.axiosInstance) {
+      this.axiosInstance.defaults.httpsAgent = this.proxyAgent;
+    }
   }
 
   /**
@@ -189,7 +191,9 @@ export class CivitaiClient {
    */
   public setHeaders(headers: Partial<BrowserHeaders>): void {
     this.defaultHeaders = { ...this.defaultHeaders, ...headers };
-    this.axiosInstance.defaults.headers.common = { ...this.defaultHeaders };
+    if (this.axiosInstance) {
+      this.axiosInstance.defaults.headers.common = { ...this.defaultHeaders };
+    }
   }
 
   /**
@@ -199,6 +203,10 @@ export class CivitaiClient {
    */
   public async getModel(modelId: number): Promise<CivitaiModel> {
     try {
+      if (!this.axiosInstance) {
+        throw new Error('Axios instance is not initialized');
+      }
+      
       log.info(`正在获取模型信息，模型ID: ${modelId}`);
       const response: AxiosResponse<CivitaiModel> = await this.axiosInstance.get(`/models/${modelId}`);
       log.info(`成功获取模型信息: ${response.data.name}`);
@@ -218,6 +226,10 @@ export class CivitaiClient {
    */
   public async getModelVersion(modelId: number, versionId: number): Promise<CivitaiModelVersion> {
     try {
+      if (!this.axiosInstance) {
+        throw new Error('Axios instance is not initialized');
+      }
+      
       log.info(`正在获取模型版本信息，模型ID: ${modelId}，版本ID: ${versionId}`);
       const response: AxiosResponse<CivitaiModelVersion> = await this.axiosInstance.get(`/models/${modelId}/model-versions/${versionId}`);
       log.info(`成功获取模型版本信息: ${response.data.name}`);
@@ -237,6 +249,10 @@ export class CivitaiClient {
    */
   public async searchModels(query: string, limit: number = 20): Promise<CivitaiModel[]> {
     try {
+      if (!this.axiosInstance) {
+        throw new Error('Axios instance is not initialized');
+      }
+      
       log.info(`正在搜索模型，查询: ${query}，限制数量: ${limit}`);
       const response: AxiosResponse<CivitaiModel[]> = await this.axiosInstance.get('/models', {
         params: {
@@ -512,7 +528,16 @@ export class CivitaiClient {
       const metadata = await this.getModelMetadata(modelId);
       
       // 设置保存路径
-      const targetPath = savePath || join(app.getPath('downloads'), 'civitai-models', 'metadata');
+      let targetPath: string;
+      if (savePath) {
+        targetPath = savePath;
+      } else {
+        const downloadsPath = app.getPath('downloads');
+        if (!downloadsPath) {
+          throw new Error('无法获取下载目录路径');
+        }
+        targetPath = join(downloadsPath, 'civitai-models', 'metadata');
+      }
       
       // 确保目录存在
       if (!existsSync(targetPath)) {
