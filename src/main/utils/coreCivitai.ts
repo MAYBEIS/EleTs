@@ -189,7 +189,7 @@ export class CivitaiClient {
    */
   public setHeaders(headers: Partial<BrowserHeaders>): void {
     this.defaultHeaders = { ...this.defaultHeaders, ...headers };
-    this.axiosInstance.defaults.headers.common = this.defaultHeaders;
+    this.axiosInstance.defaults.headers.common = { ...this.defaultHeaders };
   }
 
   /**
