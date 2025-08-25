@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-08-25 13:11:50
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-25 19:27:53
+ * @LastEditTime: 2025-08-25 21:10:25
  * @FilePath: \EleTs\src\main\tests\utils\coreCivitai.test.ts
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -49,8 +49,19 @@ const mockAxiosInstance = {
   }
 };
 
+// 确保 mockAxiosInstance.defaults.headers.common 可以被修改
+Object.defineProperty(mockAxiosInstance.defaults.headers, 'common', {
+  writable: true,
+  value: {}
+});
+
 // Mock axios.create
 vi.mocked(axios.create).mockReturnValue(mockAxiosInstance as any);
+
+// 重置 mockAxiosInstance.get
+beforeEach(() => {
+  mockAxiosInstance.get.mockReset();
+});
 
 // Mock HttpsProxyAgent
 const mockProxyAgent = {};
@@ -163,11 +174,11 @@ const createMockCivitaiModelVersion = (overrides?: Partial<CivitaiModelVersion>)
 
 const createMockProxyConfig = (overrides?: Partial<ProxyConfig>): ProxyConfig => ({
   host: '127.0.0.1',
-  port: 1080,
+  port: 7891,
   protocol: 'http',
   auth: {
-    username: 'user',
-    password: 'pass'
+    username: '',
+    password: ''
   },
   ...overrides
 });
@@ -229,7 +240,7 @@ describe('CivitaiClient', () => {
       const proxyConfig = createMockProxyConfig();
       const client = new CivitaiClient({ proxy: proxyConfig });
       
-      expect(HttpsProxyAgent).toHaveBeenCalledWith('http://127.0.0.1:1080');
+      expect(HttpsProxyAgent).toHaveBeenCalledWith('http://127.0.0.1:7891');
       expect(client).toBeInstanceOf(CivitaiClient);
     });
 
@@ -254,15 +265,15 @@ describe('CivitaiClient', () => {
       const proxyConfig = createMockProxyConfig();
       civitaiClient.setProxy(proxyConfig);
       
-      expect(HttpsProxyAgent).toHaveBeenCalledWith('http://127.0.0.1:1080');
+      expect(HttpsProxyAgent).toHaveBeenCalledWith('http://127.0.0.1:7891');
       expect(mockAxiosInstance.defaults.httpsAgent).toBe(mockProxyAgent);
     });
 
     it('应该使用默认协议 http', () => {
-      const proxyConfig = { host: '127.0.0.1', port: 1080 };
+      const proxyConfig = { host: '127.0.0.1', port: 7891 };
       civitaiClient.setProxy(proxyConfig);
       
-      expect(HttpsProxyAgent).toHaveBeenCalledWith('http://127.0.0.1:1080');
+      expect(HttpsProxyAgent).toHaveBeenCalledWith('http://127.0.0.1:7891');
     });
   });
 
@@ -271,6 +282,7 @@ describe('CivitaiClient', () => {
       const customHeaders = { 'User-Agent': 'Custom User Agent' };
       civitaiClient.setHeaders(customHeaders);
       
+      // 检查 defaultHeaders 是否正确更新
       expect(mockAxiosInstance.defaults.headers.common).toEqual(
         expect.objectContaining({
           'User-Agent': 'Custom User Agent'
@@ -281,9 +293,11 @@ describe('CivitaiClient', () => {
 
   describe('getModel', () => {
     it('应该成功获取模型信息', async () => {
-      const modelId = 12345;
+      const modelId = 257749;
       mockAxiosInstance.get.mockResolvedValue(mockResponse);
-      
+      const proxyConfig = createMockProxyConfig();
+      proxyConfig.port = 7890
+      civitaiClient.setProxy(proxyConfig);
       const result = await civitaiClient.getModel(modelId);
       
       expect(mockAxiosInstance.get).toHaveBeenCalledWith(`/models/${modelId}`);
@@ -293,7 +307,7 @@ describe('CivitaiClient', () => {
     });
 
     it('应该处理获取模型信息失败的情况', async () => {
-      const modelId = 12345;
+      const modelId = 257749;
       const error = new Error('Network error');
       mockAxiosInstance.get.mockRejectedValue(error);
       
@@ -686,7 +700,7 @@ describe('CivitaiClient', () => {
         JSON.stringify(mockMetadata, null, 2)
       );
       
-      expect(result).toBe(expect.stringContaining('Anime_Style_Character_LoRA_12345.json'));
+      expect(result).toContain('Anime_Style_Character_LoRA_12345.json');
     });
 
     it('应该使用自定义保存路径', async () => {
@@ -739,7 +753,7 @@ describe('createCivitaiClient', () => {
     const client = createCivitaiClient({ proxy: proxyConfig, headers });
     
     expect(client).toBeInstanceOf(CivitaiClient);
-    expect(HttpsProxyAgent).toHaveBeenCalledWith('http://127.0.0.1:1080');
+    expect(HttpsProxyAgent).toHaveBeenCalledWith('http://127.0.0.1:7891');
   });
 });
 
@@ -748,3 +762,4 @@ describe('defaultCivitaiClient', () => {
     expect(defaultCivitaiClient).toBeInstanceOf(CivitaiClient);
   });
 });
+
