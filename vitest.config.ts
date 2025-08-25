@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-07-21 13:03:40
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-25 19:44:33
+ * @LastEditTime: 2025-08-25 20:03:16
  * @FilePath: \EleTs\vitest.config.ts
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -34,7 +34,8 @@ export default defineConfig({
     // 配置测试报告输出到文件，只输出失败的测试用例
     reporters: ['default', new FailureOnlyReporter(), 'junit'],
     outputFile: {
-      junit: 'test-results/junit.xml'
+      junit: 'test-results/junit.xml',
+      json:'test-results/failed-tests.json',
     },
     
     setupFiles: ['./src/renderer/tests/setup.ts'],
