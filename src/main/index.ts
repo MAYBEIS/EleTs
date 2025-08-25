@@ -26,8 +26,6 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import electronLog from 'electron-log'
 // 导入 Node.js 路径处理模块
 import { join } from 'path'
-// 导入 AI IPC 处理程序
-import { initAiIpc } from './ipc/aiIpc'
 // 导入 https-proxy-agent
 import { HttpsProxyAgent } from 'https-proxy-agent'
 
@@ -192,10 +190,6 @@ if (!gotTheLock) {
 
     // 创建主窗口并保存引用
     mainWindow = createWindow()
-    // 初始化 AI IPC 处理程序
-    initAiIpc()
-    // 初始化下载 IPC 处理程序
-    // initDownloadIpc()
     
     // 注册 IPC 处理程序，允许从渲染进程打开开发者工具
     ipcMain.handle('open-dev-tools', async () => {
