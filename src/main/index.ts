@@ -28,6 +28,8 @@ import electronLog from 'electron-log'
 import { join } from 'path'
 // 导入 https-proxy-agent
 import { HttpsProxyAgent } from 'https-proxy-agent'
+// 导入 Civitai IPC 处理器
+import { registerCivitaiIpcHandlers, removeCivitaiIpcHandlers } from './ipc/civitaiIpc'
 
 // ==================== 日志配置 ====================
 
@@ -43,14 +45,24 @@ electronLog.transports.file.level = 'debug'
 
 // 设置日志文件的最大大小为 10MB，超过后会自动轮转
 electronLog.transports.file.maxSize = 10 * 1024 * 1024
+
 // 设置控制台输出编码为 UTF-8
 if (process.platform === 'win32') {
-  electronLog.transports.console.format = '{y}-{m}-{d} {h}:{i}:{s}.{ms} > {text}'
+  electronLog.transports.console.format = '[{level}] {y}-{m}-{d} {h}:{i}:{s}.{ms} > {text}'
+  electronLog.transports.console.useStyles = false // 禁用样式以避免编码问题
+  // 设置控制台编码为 UTF-8
+  process.stdout.write('\x1b[?25h')
+} else {
+  electronLog.transports.console.format = '[{level}] {y}-{m}-{d} {h}:{i}:{s}.{ms} > {text}'
   electronLog.transports.console.useStyles = true
 }
 
 // 设置文件传输编码为 UTF-8
-electronLog.transports.file.format = '{y}-{m}-{d} {h}:{i}:{s}.{ms} > {text}'
+electronLog.transports.file.format = '[{level}] {y}-{m}-{d} {h}:{i}:{s}.{ms} > {text}'
+
+// 设置日志文件路径
+electronLog.transports.file.fileName = 'main.log'
+electronLog.transports.file.resolvePath = () => join(app.getPath('logs'), 'main.log')
 
 
 // 将 electronLog 的日志函数绑定到全局 console 对象
@@ -191,6 +203,14 @@ if (!gotTheLock) {
     // 创建主窗口并保存引用
     mainWindow = createWindow()
     
+    // 注册 Civitai IPC 处理器
+    try {
+      registerCivitaiIpcHandlers(mainWindow.webContents)
+      console.log('Civitai IPC handlers registered successfully')
+    } catch (error) {
+      console.error('Failed to register Civitai IPC handlers:', error)
+    }
+    
     // 注册 IPC 处理程序，允许从渲染进程打开开发者工具
     ipcMain.handle('open-dev-tools', async () => {
       if (mainWindow) {
@@ -222,8 +242,30 @@ if (!gotTheLock) {
    * macOS：保持应用程序运行（符合 macOS 应用习惯）
    */
   app.on('window-all-closed', () => {
+    // 清理 Civitai IPC 处理器
+    try {
+      removeCivitaiIpcHandlers()
+      console.log('Civitai IPC handlers cleaned up 完成:')
+    } catch (error) {
+      console.error('Failed to clean up Civitai IPC handlers:', error)
+    }
+    
     if (process.platform !== 'darwin') {
       app.quit()
+    }
+  })
+
+  /**
+   * 应用程序退出前的处理
+   * 清理所有资源，包括 Civitai IPC 处理器
+   */
+  app.on('before-quit', () => {
+    // 清理 Civitai IPC 处理器
+    try {
+      removeCivitaiIpcHandlers()
+      console.log('Civitai IPC handlers cleaned up before app quit')
+    } catch (error) {
+      console.error('Failed to clean up Civitai IPC handlers before app quit:', error)
     }
   })
 }
