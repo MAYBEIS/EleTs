@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-08-25 13:11:50
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-25 21:10:25
+ * @LastEditTime: 2025-08-25 21:28:24
  * @FilePath: \EleTs\src\main\tests\utils\coreCivitai.test.ts
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -174,7 +174,7 @@ const createMockCivitaiModelVersion = (overrides?: Partial<CivitaiModelVersion>)
 
 const createMockProxyConfig = (overrides?: Partial<ProxyConfig>): ProxyConfig => ({
   host: '127.0.0.1',
-  port: 7891,
+  port: 7890,
   protocol: 'http',
   auth: {
     username: '',
@@ -240,7 +240,7 @@ describe('CivitaiClient', () => {
       const proxyConfig = createMockProxyConfig();
       const client = new CivitaiClient({ proxy: proxyConfig });
       
-      expect(HttpsProxyAgent).toHaveBeenCalledWith('http://127.0.0.1:7891');
+      expect(HttpsProxyAgent).toHaveBeenCalledWith('http://127.0.0.1:7890');
       expect(client).toBeInstanceOf(CivitaiClient);
     });
 
@@ -265,15 +265,15 @@ describe('CivitaiClient', () => {
       const proxyConfig = createMockProxyConfig();
       civitaiClient.setProxy(proxyConfig);
       
-      expect(HttpsProxyAgent).toHaveBeenCalledWith('http://127.0.0.1:7891');
+      expect(HttpsProxyAgent).toHaveBeenCalledWith('http://127.0.0.1:7890');
       expect(mockAxiosInstance.defaults.httpsAgent).toBe(mockProxyAgent);
     });
 
     it('应该使用默认协议 http', () => {
-      const proxyConfig = { host: '127.0.0.1', port: 7891 };
+      const proxyConfig = { host: '127.0.0.1', port: 7890 };
       civitaiClient.setProxy(proxyConfig);
       
-      expect(HttpsProxyAgent).toHaveBeenCalledWith('http://127.0.0.1:7891');
+      expect(HttpsProxyAgent).toHaveBeenCalledWith('http://127.0.0.1:7890');
     });
   });
 
@@ -294,16 +294,19 @@ describe('CivitaiClient', () => {
   describe('getModel', () => {
     it('应该成功获取模型信息', async () => {
       const modelId = 257749;
-      mockAxiosInstance.get.mockResolvedValue(mockResponse);
-      const proxyConfig = createMockProxyConfig();
-      proxyConfig.port = 7890
-      civitaiClient.setProxy(proxyConfig);
+      const mockModel = createMockCivitaiModel({ id: modelId });
+      mockAxiosInstance.get.mockResolvedValue({
+        data: mockModel,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {}
+      });
+
       const result = await civitaiClient.getModel(modelId);
-      
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith(`/models/${modelId}`);
-      expect(result).toEqual(mockResponse.data);
+      expect(result).toEqual(mockModel);
       expect(log.info).toHaveBeenCalledWith(`正在获取模型信息，模型ID: ${modelId}`);
-      expect(log.info).toHaveBeenCalledWith(`成功获取模型信息: ${mockResponse.data.name}`);
+      expect(log.info).toHaveBeenCalledWith(`成功获取模型信息: ${mockModel.name}`);
     });
 
     it('应该处理获取模型信息失败的情况', async () => {
@@ -753,7 +756,7 @@ describe('createCivitaiClient', () => {
     const client = createCivitaiClient({ proxy: proxyConfig, headers });
     
     expect(client).toBeInstanceOf(CivitaiClient);
-    expect(HttpsProxyAgent).toHaveBeenCalledWith('http://127.0.0.1:7891');
+    expect(HttpsProxyAgent).toHaveBeenCalledWith('http://127.0.0.1:7890');
   });
 });
 

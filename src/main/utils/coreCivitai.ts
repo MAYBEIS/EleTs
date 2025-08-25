@@ -206,12 +206,13 @@ export class CivitaiClient {
    * @param modelId 模型ID
    * @returns 模型信息
    */
-  public async getModel(modelId: number): Promise<CivitaiModel> {
+  public async getModel(modelId: number){
     try {
       log.info(`正在获取模型信息，模型ID: ${modelId}`);
-      const response: AxiosResponse<CivitaiModel> = await this.axiosInstance.get(`/models/${modelId}`);
-      log.info(`成功获取模型信息: ${response.data.name}`);
-      return response.data;
+      // const response: AxiosResponse<CivitaiModel> = await this.axiosInstance.get(`/models/${modelId}`);
+      // log.info(`成功获取模型信息: ${response.data.name}`);
+      // return response.data;
+      return "dad"
     } catch (error) {
       const errorMessage = `获取模型信息失败: ${error.message}`;
       log.error(errorMessage, error);

@@ -175,7 +175,7 @@ class FailureOnlyReporter implements Reporter {
             
             return {
               message: cleanMessage,
-              // stack: simplifiedStack,
+              stack: simplifiedStack,
               expected: error.expected,
               actual: error.actual
             };
@@ -208,7 +208,7 @@ class FailureOnlyReporter implements Reporter {
           
           errorInfo = {
             message: cleanMessage,
-            // stack: simplifiedStack,
+            stack: simplifiedStack,
             expected: test.result.error.expected,
             actual: test.result.error.actual
           };
