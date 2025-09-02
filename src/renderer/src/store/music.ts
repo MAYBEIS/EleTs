@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-09-02
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-09-02 11:56:40
+ * @LastEditTime: 2025-09-02 12:55:00
  * @FilePath: \EleTs\src\renderer\src\store\music.ts
  * @Description: 音乐播放器状态管理
  */
@@ -34,6 +34,8 @@ export interface PlaybackState {
   isPlaying: boolean
   volume: number
   progress: number
+  playlist: Track[]
+  currentIndex: number
 }
 
 export const useMusicStore = defineStore('music', {
@@ -41,7 +43,9 @@ export const useMusicStore = defineStore('music', {
     currentTrack: null,
     isPlaying: false,
     volume: 80,
-    progress: 0
+    progress: 0,
+    playlist: [],
+    currentIndex: -1
   }),
   
   actions: {
@@ -61,18 +65,57 @@ export const useMusicStore = defineStore('music', {
       this.progress = progress
     },
     
+    setPlaylist(playlist: Track[]) {
+      this.playlist = playlist
+      this.currentIndex = -1
+    },
+    
+    setCurrentIndex(index: number) {
+      this.currentIndex = index
+      if (index >= 0 && index < this.playlist.length) {
+        this.currentTrack = this.playlist[index]
+      }
+    },
+    
     togglePlay() {
       this.isPlaying = !this.isPlaying
     },
     
     nextTrack() {
-      // 这里将在后续实现中添加下一首歌曲的逻辑
+      if (this.playlist.length > 0) {
+        this.currentIndex = (this.currentIndex + 1) % this.playlist.length
+        this.currentTrack = this.playlist[this.currentIndex]
+        this.isPlaying = true
+      }
       console.log('下一首')
     },
     
     previousTrack() {
-      // 这里将在后续实现中添加上一首歌曲的逻辑
+      if (this.playlist.length > 0) {
+        this.currentIndex = (this.currentIndex - 1 + this.playlist.length) % this.playlist.length
+        this.currentTrack = this.playlist[this.currentIndex]
+        this.isPlaying = true
+      }
       console.log('上一首')
+    },
+    
+    addToPlaylist(track: Track) {
+      this.playlist.push(track)
+    },
+    
+    removeFromPlaylist(index: number) {
+      if (index >= 0 && index < this.playlist.length) {
+        this.playlist.splice(index, 1)
+        if (this.currentIndex >= index) {
+          this.currentIndex = Math.max(0, this.currentIndex - 1)
+        }
+      }
+    },
+    
+    clearPlaylist() {
+      this.playlist = []
+      this.currentIndex = -1
+      this.currentTrack = null
     }
   }
 })

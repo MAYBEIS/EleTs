@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-09-02
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-09-02 11:48:19
+ * @LastEditTime: 2025-09-02 13:40:39
  * @FilePath: \EleTs\src\renderer\src\composables\useMusicPlayer.ts
  * @Description: 音乐播放器核心功能模块
  */
@@ -14,19 +14,23 @@ import { useMusicStore } from '../store/music'
 // 定义音频对象引用
 const audio = ref<Howl | null>(null)
 
-// 获取音乐状态管理实例
-const musicStore = useMusicStore()
-
 // 播放音乐
-export const play = () => {
+export const play = (musicStore: ReturnType<typeof useMusicStore>) => {
   if (audio.value) {
     audio.value.play()
     musicStore.setPlaying(true)
+  } else if (musicStore.currentTrack && musicStore.currentTrack.filePath) {
+    // 如果没有音频对象但有当前曲目，则加载并播放
+    loadTrack(musicStore.currentTrack.filePath, musicStore)
+    if (audio.value) {
+      audio.value.play()
+      musicStore.setPlaying(true)
+    }
   }
 }
 
 // 暂停音乐
-export const pause = () => {
+export const pause = (musicStore: ReturnType<typeof useMusicStore>) => {
   if (audio.value) {
     audio.value.pause()
     musicStore.setPlaying(false)
@@ -34,7 +38,7 @@ export const pause = () => {
 }
 
 // 停止音乐
-export const stop = () => {
+export const stop = (musicStore: ReturnType<typeof useMusicStore>) => {
   if (audio.value) {
     audio.value.stop()
     musicStore.setPlaying(false)
@@ -42,22 +46,22 @@ export const stop = () => {
 }
 
 // 设置音量
-export const setVolume = (volume: number) => {
+export const setVolume = (volume: number, musicStore: ReturnType<typeof useMusicStore>) => {
   if (audio.value) {
     audio.value.volume(volume / 100)
-    musicStore.setVolume(volume)
   }
+  musicStore.setVolume(volume)
 }
 
 // 跳转到指定位置
-export const seek = (position: number) => {
+export const seek = (position: number, musicStore: ReturnType<typeof useMusicStore>) => {
   if (audio.value) {
     audio.value.seek(position)
   }
 }
 
 // 加载音乐文件
-export const loadTrack = (filePath: string) => {
+export const loadTrack = (filePath: string, musicStore: ReturnType<typeof useMusicStore>) => {
   // 如果当前有正在播放的音频，先停止并卸载
   if (audio.value) {
     audio.value.unload()
@@ -71,7 +75,7 @@ export const loadTrack = (filePath: string) => {
     onplay: () => {
       // 开始播放时更新状态
       musicStore.setPlaying(true)
-      updateProgress()
+      updateProgress(musicStore)
     },
     onpause: () => {
       // 暂停时更新状态
@@ -84,7 +88,8 @@ export const loadTrack = (filePath: string) => {
     onend: () => {
       // 播放结束时更新状态
       musicStore.setPlaying(false)
-      // 可以在这里添加播放下一首的逻辑
+      // 播放下一首
+      nextTrack(musicStore)
     },
     onloaderror: (id, error) => {
       console.error('音频加载失败:', error)
@@ -97,36 +102,34 @@ export const loadTrack = (filePath: string) => {
   return audio.value
 }
 
+// 播放下一首
+export const nextTrack = (musicStore: ReturnType<typeof useMusicStore>) => {
+  musicStore.nextTrack()
+  if (musicStore.currentTrack && musicStore.currentTrack.filePath) {
+    loadTrack(musicStore.currentTrack.filePath, musicStore)
+    play(musicStore)
+  }
+}
+
+// 播放上一首
+export const previousTrack = (musicStore: ReturnType<typeof useMusicStore>) => {
+  musicStore.previousTrack()
+  if (musicStore.currentTrack && musicStore.currentTrack.filePath) {
+    loadTrack(musicStore.currentTrack.filePath, musicStore)
+    play(musicStore)
+  }
+}
+
 // 更新播放进度
-const updateProgress = () => {
+const updateProgress = (musicStore: ReturnType<typeof useMusicStore>) => {
   if (audio.value && musicStore.isPlaying) {
     const progress = audio.value.seek() as number
     musicStore.setProgress(progress)
     
     // 每秒更新一次进度
-    setTimeout(updateProgress, 1000)
+    setTimeout(() => updateProgress(musicStore), 1000)
   }
 }
-
-// 监听音量变化
-watch(
-  () => musicStore.volume,
-  (newVolume) => {
-    setVolume(newVolume)
-  }
-)
-
-// 监听播放状态变化
-watch(
-  () => musicStore.isPlaying,
-  (isPlaying) => {
-    if (isPlaying) {
-      play()
-    } else {
-      pause()
-    }
-  }
-)
 
 // 组件卸载时清理音频资源
 export const unloadAudio = () => {
@@ -146,6 +149,8 @@ export const useMusicPlayer = () => {
     setVolume,
     seek,
     loadTrack,
+    nextTrack,
+    previousTrack,
     unloadAudio
   }
 }

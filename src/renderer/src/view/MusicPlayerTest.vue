@@ -2,12 +2,12 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-09-02
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-09-02 13:41:42
- * @FilePath: \EleTs\src\renderer/src/view/TestPlayer.vue
+ * @LastEditTime: 2025-09-02 13:42:23
+ * @FilePath: \EleTs\src\renderer/src/view/MusicPlayerTest.vue
  * @Description: 音乐播放器测试页面
 -->
 <template>
-  <div class="test-player">
+  <div class="music-player-test">
     <h1>音乐播放器测试</h1>
     
     <div class="test-section">
@@ -62,9 +62,12 @@ const progress = computed({
   get: () => musicStore.progress,
   set: (value) => musicStore.setProgress(value)
 })
+const volume = computed({
+  get: () => musicStore.volume,
+  set: (value) => musicStore.setVolume(value)
+})
 
 // 本地状态
-const volume = ref(80)
 const duration = ref(100)
 
 // 格式化时间
@@ -119,7 +122,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.test-player {
+.music-player-test {
   padding: 24px;
   max-width: 800px;
   margin: 0 auto;

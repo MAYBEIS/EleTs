@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-09-02
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-09-02 11:49:14
+ * @LastEditTime: 2025-09-02 13:41:22
  * @FilePath: \EleTs\src\renderer\src\components\PlayerControls.vue
  * @Description: 播放控制组件
 -->
@@ -17,7 +17,7 @@
     </div>
     
     <div class="control-buttons">
-      <a-button type="text" @click="previousTrack">
+      <a-button type="text" @click="handlePreviousTrack">
         <template #icon>
           <StepBackwardOutlined />
         </template>
@@ -30,7 +30,7 @@
         </template>
       </a-button>
       
-      <a-button type="text" @click="nextTrack">
+      <a-button type="text" @click="handleNextTrack">
         <template #icon>
           <StepForwardOutlined />
         </template>
@@ -79,7 +79,7 @@ import { useMusicStore } from '../store/music'
 import { useMusicPlayer } from '../composables/useMusicPlayer'
 
 const musicStore = useMusicStore()
-const { play, pause, setVolume, seek, unloadAudio } = useMusicPlayer()
+const { play, pause, setVolume, seek, loadTrack, unloadAudio, nextTrack, previousTrack } = useMusicPlayer()
 
 // 计算属性
 const currentTrack = computed(() => musicStore.currentTrack)
@@ -107,44 +107,44 @@ const formatTime = (seconds: number) => {
 // 切换播放/暂停
 const togglePlay = () => {
   if (isPlaying.value) {
-    pause()
+    pause(musicStore)
   } else {
-    play()
+    play(musicStore)
   }
 }
 
 // 上一首
-const previousTrack = () => {
-  musicStore.previousTrack()
+const handlePreviousTrack = () => {
+  previousTrack(musicStore)
 }
 
 // 下一首
-const nextTrack = () => {
-  musicStore.nextTrack()
+const handleNextTrack = () => {
+  nextTrack(musicStore)
 }
 
 // 切换静音
 const toggleMute = () => {
   if (isMuted.value) {
     // 取消静音
-    setVolume(previousVolume.value)
+    setVolume(previousVolume.value, musicStore)
     isMuted.value = false
   } else {
     // 静音
     previousVolume.value = volume.value
-    setVolume(0)
+    setVolume(0, musicStore)
     isMuted.value = true
   }
 }
 
 // 进度条变化
 const onProgressChange = (value: number) => {
-  seek(value)
+  seek(value, musicStore)
 }
 
 // 音量变化
 const onVolumeChange = (value: number) => {
-  setVolume(value)
+  setVolume(value, musicStore)
   if (value > 0 && isMuted.value) {
     isMuted.value = false
   }
@@ -156,7 +156,7 @@ watch(
   (newTrack) => {
     if (newTrack && newTrack.filePath) {
       // 加载新曲目
-      // loadTrack(newTrack.filePath)
+      loadTrack(newTrack.filePath, musicStore)
       console.log('加载曲目:', newTrack.filePath)
     }
   }
