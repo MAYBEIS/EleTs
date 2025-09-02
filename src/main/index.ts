@@ -21,7 +21,7 @@ if (process.platform === 'win32') {
 // 导入 Electron 工具包，提供常用的 Electron 开发工具
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 // 导入 Electron 核心模块
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, globalShortcut } from 'electron'
 // 导入日志记录库，用于应用程序日志管理
 import electronLog from 'electron-log'
 // 导入 Node.js 路径处理模块
@@ -163,6 +163,61 @@ function createWindow(): BrowserWindow {
   return mainWindow
 }
 
+// ==================== 全局快捷键注册 ====================
+
+/**
+ * 注册全局快捷键
+ */
+function registerGlobalShortcuts() {
+  // 注册播放/暂停快捷键 (Ctrl + Shift + P)
+  const playPauseRegistered = globalShortcut.register('CommandOrControl+Shift+P', () => {
+    if (mainWindow) {
+      mainWindow.webContents.send('music:play-pause')
+    }
+  })
+  
+  // 注册下一首快捷键 (Ctrl + Shift + N)
+  const nextRegistered = globalShortcut.register('CommandOrControl+Shift+N', () => {
+    if (mainWindow) {
+      mainWindow.webContents.send('music:next')
+    }
+  })
+  
+  // 注册上一首快捷键 (Ctrl + Shift + B)
+  const previousRegistered = globalShortcut.register('CommandOrControl+Shift+B', () => {
+    if (mainWindow) {
+      mainWindow.webContents.send('music:previous')
+    }
+  })
+  
+  // 注册音量增加快捷键 (Ctrl + Shift + Up)
+  const volumeUpRegistered = globalShortcut.register('CommandOrControl+Shift+Up', () => {
+    if (mainWindow) {
+      mainWindow.webContents.send('music:volume-up')
+    }
+  })
+  
+  // 注册音量减少快捷键 (Ctrl + Shift + Down)
+  const volumeDownRegistered = globalShortcut.register('CommandOrControl+Shift+Down', () => {
+    if (mainWindow) {
+      mainWindow.webContents.send('music:volume-down')
+    }
+  })
+  
+  if (!playPauseRegistered || !nextRegistered || !previousRegistered || !volumeUpRegistered || !volumeDownRegistered) {
+    console.log('全局快捷键注册失败')
+  } else {
+    console.log('全局快捷键注册成功')
+  }
+}
+
+/**
+ * 注销全局快捷键
+ */
+function unregisterGlobalShortcuts() {
+  globalShortcut.unregisterAll()
+}
+
 // ==================== 单实例应用控制 ====================
 
 /**
@@ -201,6 +256,9 @@ if (!gotTheLock) {
     // 创建主窗口并保存引用
     mainWindow = createWindow()
 
+    // 注册全局快捷键
+    registerGlobalShortcuts()
+
     // 注册 IPC 处理程序，允许从渲染进程打开开发者工具
     ipcMain.handle('open-dev-tools', async () => {
       if (mainWindow) {
@@ -226,5 +284,13 @@ if (!gotTheLock) {
     })
   })
 
-
+  /**
+   * 应用程序即将退出时的处理
+   * 注销全局快捷键
+   */
+  app.on('will-quit', () => {
+    unregisterGlobalShortcuts()
+  })
 }
+
+
