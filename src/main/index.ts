@@ -28,8 +28,6 @@ import electronLog from 'electron-log'
 import { join } from 'path'
 // 导入 https-proxy-agent
 import { HttpsProxyAgent } from 'https-proxy-agent'
-// 导入 Civitai IPC 处理器
-import { registerCivitaiIpcHandlers, removeCivitaiIpcHandlers } from './ipc/civitaiIpc'
 
 // ==================== 日志配置 ====================
 
@@ -202,15 +200,7 @@ if (!gotTheLock) {
 
     // 创建主窗口并保存引用
     mainWindow = createWindow()
-    
-    // 注册 Civitai IPC 处理器
-    try {
-      registerCivitaiIpcHandlers(mainWindow.webContents)
-      console.log('Civitai IPC handlers registered successfully')
-    } catch (error) {
-      console.error('Failed to register Civitai IPC handlers:', error)
-    }
-    
+
     // 注册 IPC 处理程序，允许从渲染进程打开开发者工具
     ipcMain.handle('open-dev-tools', async () => {
       if (mainWindow) {
@@ -236,36 +226,5 @@ if (!gotTheLock) {
     })
   })
 
-  /**
-   * 所有窗口关闭时的处理
-   * Windows/Linux：退出应用程序
-   * macOS：保持应用程序运行（符合 macOS 应用习惯）
-   */
-  app.on('window-all-closed', () => {
-    // 清理 Civitai IPC 处理器
-    try {
-      removeCivitaiIpcHandlers()
-      console.log('Civitai IPC handlers cleaned up 完成:')
-    } catch (error) {
-      console.error('Failed to clean up Civitai IPC handlers:', error)
-    }
-    
-    if (process.platform !== 'darwin') {
-      app.quit()
-    }
-  })
 
-  /**
-   * 应用程序退出前的处理
-   * 清理所有资源，包括 Civitai IPC 处理器
-   */
-  app.on('before-quit', () => {
-    // 清理 Civitai IPC 处理器
-    try {
-      removeCivitaiIpcHandlers()
-      console.log('Civitai IPC handlers cleaned up before app quit')
-    } catch (error) {
-      console.error('Failed to clean up Civitai IPC handlers before app quit:', error)
-    }
-  })
 }
