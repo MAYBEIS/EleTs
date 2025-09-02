@@ -10,6 +10,8 @@
 electron+TS+Vue+tailwind+capacitor
 PC端+安卓移动端
 
+![项目截图](img/Snipaste_2025-09-02_17-42-30.png)
+
 ## 音乐播放器功能
 
 本项目已集成音乐播放器功能，包含以下特性：
