@@ -68,7 +68,7 @@ class FailureOnlyReporter implements Reporter {
               // 提取堆栈中的关键信息
               const stackLines = error.stack.split('\n');
               // 查找测试文件中的行
-              const testFileLine = stackLines.find((line: string) =>
+              const testFileLine = stackLines.find(line =>
                 line.includes('src\\main\\tests\\utils\\coreCivitai.test.ts') ||
                 line.includes('src/main/tests/utils/coreCivitai.test.ts')
               );
@@ -104,7 +104,7 @@ class FailureOnlyReporter implements Reporter {
             // 提取堆栈中的关键信息
             const stackLines = test.result.error.stack.split('\n');
             // 查找测试文件中的行
-            const testFileLine = stackLines.find((line: string) =>
+            const testFileLine = stackLines.find(line =>
               line.includes('src\\main\\tests\\utils\\coreCivitai.test.ts') ||
               line.includes('src/main/tests/utils/coreCivitai.test.ts')
             );
@@ -157,13 +157,13 @@ class FailureOnlyReporter implements Reporter {
               // 提取堆栈中的关键信息
               const stackLines = error.stack.split('\n');
               // 查找测试文件中的行
-              const testFileLine = stackLines.find((line: string) =>
+              const testFileLine = stackLines.find(line =>
                 line.includes('src\\main\\tests\\utils\\coreCivitai.test.ts') ||
                 line.includes('src/main/tests/utils/coreCivitai.test.ts')
               );
               
               // 查找源代码文件中的行
-              const sourceFileLine = stackLines.find((line: string) =>
+              const sourceFileLine = stackLines.find(line =>
                 line.includes('src\\main\\utils\\coreCivitai.ts') ||
                 line.includes('src/main/utils/coreCivitai.ts')
               );
@@ -190,13 +190,13 @@ class FailureOnlyReporter implements Reporter {
             // 提取堆栈中的关键信息
             const stackLines = test.result.error.stack.split('\n');
             // 查找测试文件中的行
-            const testFileLine = stackLines.find((line: string) =>
+            const testFileLine = stackLines.find(line =>
               line.includes('src\\main\\tests\\utils\\coreCivitai.test.ts') ||
               line.includes('src/main/tests/utils/coreCivitai.test.ts')
             );
             
             // 查找源代码文件中的行
-            const sourceFileLine = stackLines.find((line: string) =>
+            const sourceFileLine = stackLines.find(line =>
               line.includes('src\\main\\utils\\coreCivitai.ts') ||
               line.includes('src/main/utils/coreCivitai.ts')
             );
