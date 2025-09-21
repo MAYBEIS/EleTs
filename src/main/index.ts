@@ -26,6 +26,24 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import electronLog from 'electron-log'
 // 导入 Node.js 路径处理模块
 import { join } from 'path'
+
+// 导入通信框架
+import { setupIpc } from './ipc'
+import { ServiceManager } from './service/ServiceManager'
+import { SystemMonitorService } from './service/SystemMonitorService'
+import { HardwareInfoService } from './service/HardwareInfoService'
+import { NetworkService } from './service/NetworkService'
+
+// import './handler/DownloadHandler'
+// import './ipc/handlers/global-hanlder'
+// import './ipc/handler/test_handler'
+// import './TDO/TDOhandler'
+// import "./TDO/MainHandler"
+
+
+// 使用 electronLog 捕获控制台的所有内容
+electronLog.transports.console.level = 'debug' // 设置控制台输出的日志级别, debug 为最低级别
+electronLog.transports.file.level = 'debug' // 设置文件输出的日志级别, debug 为最低级别
 // 导入 https-proxy-agent
 import { HttpsProxyAgent } from 'https-proxy-agent'
 
@@ -221,10 +239,61 @@ if (!gotTheLock) {
      * macOS 特有的应用激活事件处理
      * 当点击 Dock 图标时，如果没有窗口则创建新窗口
      */
+
+    // 初始化服务
+   initializeServices()
+
+    // 设置IPC通信
+    setupIpc()
+
     app.on('activate', function () {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
     })
   })
 
+  app.on('window-all-closed', async () => {
+    // 销毁所有服务
+    const serviceManager = ServiceManager.getInstance()
+    await serviceManager.destroyAll()
 
+    if (process.platform !== 'darwin') {
+      app.quit()
+    }
+  })
 }
+
+/**
+ * 初始化所有服务
+ */
+async function initializeServices(): Promise<void> {
+  try {
+    const serviceManager = ServiceManager.getInstance()
+
+    // 注册系统监控服务
+    await serviceManager.registerService(new SystemMonitorService())
+    console.log('SystemMonitorService registered')
+
+    // 注册硬件信息服务
+    await serviceManager.registerService(new HardwareInfoService())
+    console.log('HardwareInfoService registered')
+
+    // 注册网络服务
+    await serviceManager.registerService(new NetworkService())
+    console.log('NetworkService registered')
+
+    console.log('All services initialized successfully')
+  } catch (error) {
+    console.error('Failed to initialize services:', error)
+  }
+}
+
+// IPC test
+ipcMain.on('ping', () => console.log('pong'))
+
+ipcMain.handle('app-quit', async () => {
+  app.quit()
+})
+
+ipcMain.handle('open-dev-tools', async () => {
+  mainWindow.webContents.openDevTools()
+})

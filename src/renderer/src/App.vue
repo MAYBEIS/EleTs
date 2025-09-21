@@ -18,20 +18,17 @@ const showWelcome = ref(true)
 const handleWelcomeComplete = () => {
   showWelcome.value = false
 }
+import SystemMonitorLayout from './view/SystemMonitor/SystemMonitorLayout.vue';
+
 </script>
 
 <template>
   <!-- 开发模式，窗口空白部分隐藏 -->
   <!-- <div class="AppAll flex scroll-hidden "> -->
   <!-- 调试模式，窗口背景铺满 -->
-  <div class="AppAll h-full w-full flex scroll-hidden bg-red-200">
-    <!-- <TestPage id="Index-win" class="h-full w-full overflow-hidden drag_able "></TestPage> -->
-    <!-- <WelcomeAnimation 
-      v-if="showWelcome" 
-      :onComplete="handleWelcomeComplete" 
-    /> -->
-    <!-- v-else -->
-    <CivitaiPage  class="h-full w-full flex "/>
+  <div class="AppAll h-full w-full flex scroll-hidden">
+    <!-- <SystemMonitorLayout id="Index-win" class="h-full w-full overflow-hidden drag_notable"></SystemMonitorLayout> -->
+    <SystemMonitorLayout id="Index-win" class="h-full w-full overflow-hidden drag_notable"></SystemMonitorLayout>
   </div>
 </template>
 
