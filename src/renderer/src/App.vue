@@ -2,10 +2,10 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2024-12-08 15:34:41
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-08-24 14:11:09
+ * @LastEditTime: 2025-09-02 12:49:36
  * @FilePath: \EleTs\src\renderer\src\App.vue
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
--->
+ -->
 
 <script setup>
 import { RouterView } from 'vue-router'
@@ -33,15 +33,32 @@ import SystemMonitorLayout from './view/SystemMonitor/SystemMonitorLayout.vue';
 </template>
 
 <style>
-.drag_able{
-  -webkit-app-region: drag
+.app-layout {
+  height: 100vh;
 }
-.drag_notable{
-  -webkit-app-region: no-drag
-}
-</style>
 
-<style scoped>
+.logo {
+  height: 32px;
+  margin: 16px;
+  color: white;
+  text-align: center;
+}
+
+.header {
+  background: #fff;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+.content {
+  margin: 24px 16px;
+  padding: 24px;
+  background: #fff;
+  min-height: 280px;
+  overflow: auto;
+}
+
 /* 确保 html 和 body 全屏 */
 html, body {
   margin: 0;
@@ -51,11 +68,6 @@ html, body {
   overflow: hidden;
 }
 
-.AppAll {
-  width: 100vw;
-  height: 100vh;
-  /*background: #2d8cf0;*/
-}
 .scroll-hidden {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
