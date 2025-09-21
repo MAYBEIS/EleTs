@@ -65,7 +65,7 @@ const handleMenuClick = ({ key }) => {
   <Layout class="app-layout">
     <Sider v-model:collapsed="collapsed" :trigger="null" collapsible>
       <div class="logo">
-        <h2 v-if="!collapsed">音乐播放器</h2>
+        <h2 v-if="!collapsed">音乐播放器!!</h2>
         <h2 v-else>🎵</h2>
       </div>
       <Menu
