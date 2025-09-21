@@ -29,7 +29,7 @@ export const i18n = createI18n({
 })
 
 // 切换语言的工具函数
-export const setLocale = (locale: string) => {
+export const setLocale = (locale: 'zh-CN' | 'en-US') => {
   i18n.global.locale.value = locale
   localStorage.setItem('app-locale', locale)
   document.documentElement.lang = locale

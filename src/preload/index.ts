@@ -8,89 +8,115 @@
  */
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import { randomUUID } from 'crypto'
 
-// 定义音乐播放器相关的安全通道
-const musicChannels = [
-  'music:play',
-  'music:pause',
-  'music:stop',
-  'music:next',
-  'music:previous',
-  'music:set-volume',
-  'music:seek',
-  'music:load-track'
-] as const
+// 定义API请求和响应类型
+interface ApiRequest<T = any> {
+  id: string;
+  service: string;
+  method: string;
+  params: T;
+  timestamp: number;
+}
 
-// 定义安全的 IPC 对象，只暴露需要的方法
+interface ApiResponse<T = any> {
+  id: string;
+  success: boolean;
+  data?: T;
+  error?: {
+    code: string;
+    message: string;
+    details?: any;
+    stack?: string;
+  };
+  timestamp: number;
+}
+
+// 创建API客户端
+const createApiClient = () => {
+  return {
+    /**
+     * 调用服务方法
+     */
+    async call<T = any>(service: string, method: string, params?: any): Promise<T> {
+      const request: ApiRequest = {
+        id: randomUUID(),
+        service,
+        method,
+        params: params || {},
+        timestamp: Date.now()
+      };
+
+      try {
+        const response: ApiResponse<T> = await ipcRenderer.invoke('api:request', request);
+
+        if (response.success) {
+          return response.data as T;
+        } else {
+          const error = new Error(response.error?.message || 'Unknown error');
+          (error as any).code = response.error?.code;
+          (error as any).details = response.error?.details;
+          throw error;
+        }
+      } catch (error) {
+        console.error(`API call failed: ${service}.${method}`, error);
+        throw error;
+      }
+    },
+
+    /**
+     * 获取服务列表
+     */
+    async getServices(): Promise<string[]> {
+      return ipcRenderer.invoke('api:service-list');
+    },
+
+    /**
+     * 获取服务信息
+     */
+    async getServiceInfo(serviceName: string): Promise<any> {
+      return ipcRenderer.invoke('api:service-info', serviceName);
+    }
+  };
+};
+
+// Custom APIs for render
 const api = {
-  // 安全地暴露 ipcRenderer 的 invoke 和 send 方法
-  invoke: (channel: string, ...args: any[]) => {
-    // 验证通道是否在允许的列表中
-    if (musicChannels.includes(channel as any)) {
-      return ipcRenderer.invoke(channel, ...args)
-    }
-    console.warn(`尝试访问未授权的通道: ${channel}`)
-    return Promise.reject(new Error('未授权的通道'))
+  // API客户端
+  client: createApiClient(),
+
+  // 系统监控API
+  system: {
+    getCpuInfo: () => api.client.call('SystemMonitor', 'getCpuInfo'),
+    getMemoryInfo: () => api.client.call('SystemMonitor', 'getMemoryInfo'),
+    getDiskInfo: () => api.client.call('SystemMonitor', 'getDiskInfo'),
+    getNetworkInfo: () => api.client.call('SystemMonitor', 'getNetworkInfo'),
+    getSystemOverview: () => api.client.call('SystemMonitor', 'getSystemOverview'),
+    getRealTimeStats: () => api.client.call('SystemMonitor', 'getRealTimeStats')
   },
-  send: (channel: string, ...args: any[]) => {
-    // 验证通道是否在允许的列表中
-    if (musicChannels.includes(channel as any)) {
-      ipcRenderer.send(channel, ...args)
-    } else {
-      console.warn(`尝试访问未授权的通道: ${channel}`)
-    }
+
+  // 硬件信息API
+  hardware: {
+    getCpuDetails: () => api.client.call('HardwareInfo', 'getCpuDetails'),
+    getMemoryDetails: () => api.client.call('HardwareInfo', 'getMemoryDetails'),
+    getGraphicsInfo: () => api.client.call('HardwareInfo', 'getGraphicsInfo'),
+    getMotherboardInfo: () => api.client.call('HardwareInfo', 'getMotherboardInfo'),
+    getStorageDevices: () => api.client.call('HardwareInfo', 'getStorageDevices'),
+    getAudioDevices: () => api.client.call('HardwareInfo', 'getAudioDevices'),
+    getUsbDevices: () => api.client.call('HardwareInfo', 'getUsbDevices'),
+    getAllHardwareInfo: () => api.client.call('HardwareInfo', 'getAllHardwareInfo')
   },
-  // 添加其他需要的方法
-  on: (channel: string, func: (...args: any[]) => void) => {
-    // 允许监听特定的事件通道
-    const allowedChannels = [
-      'music:play-pause',
-      'music:next',
-      'music:previous',
-      'music:volume-up',
-      'music:volume-down',
-      'app-focus'
-    ]
-    
-    if (allowedChannels.includes(channel)) {
-      const subscription = (_event: Electron.IpcRendererEvent, ...args: any[]) => func(...args)
-      ipcRenderer.on(channel, subscription)
-      return () => ipcRenderer.removeListener(channel, subscription)
-    }
-    console.warn(`尝试监听未授权的通道: ${channel}`)
-    return () => {}
-  },
-  once: (channel: string, func: (...args: any[]) => void) => {
-    const allowedChannels = [
-      'music:play-pause',
-      'music:next',
-      'music:previous',
-      'music:volume-up',
-      'music:volume-down',
-      'app-focus'
-    ]
-    
-    if (allowedChannels.includes(channel)) {
-      ipcRenderer.once(channel, (_event, ...args) => func(...args))
-    } else {
-      console.warn(`尝试监听未授权的通道: ${channel}`)
-    }
-  },
-  removeAllListeners: (channel: string) => {
-    const allowedChannels = [
-      'music:play-pause',
-      'music:next',
-      'music:previous',
-      'music:volume-up',
-      'music:volume-down',
-      'app-focus'
-    ]
-    
-    if (allowedChannels.includes(channel)) {
-      ipcRenderer.removeAllListeners(channel)
-    } else {
-      console.warn(`尝试移除未授权的通道监听器: ${channel}`)
-    }
+
+  // 网络API
+  network: {
+    getNetworkInterfaces: () => api.client.call('Network', 'getNetworkInterfaces'),
+    getNetworkStats: () => api.client.call('Network', 'getNetworkStats'),
+    pingHost: (params: { host: string; count?: number }) => api.client.call('Network', 'pingHost', params),
+    getConnectionInfo: () => api.client.call('Network', 'getConnectionInfo'),
+    getWifiInfo: () => api.client.call('Network', 'getWifiInfo'),
+    getNetworkSpeed: () => api.client.call('Network', 'getNetworkSpeed'),
+    getActiveConnections: () => api.client.call('Network', 'getActiveConnections'),
+    getNetworkOverview: () => api.client.call('Network', 'getNetworkOverview')
   }
 }
 
