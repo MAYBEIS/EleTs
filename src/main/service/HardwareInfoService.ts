@@ -23,9 +23,18 @@ export class HardwareInfoService extends BaseService {
     await this.preloadHardwareInfo();
     
     this.log('info', 'HardwareInfoService initialized successfully');
-  }
+ }
 
-  /**
+ /**
+  * 销毁服务
+  */
+ async destroy(): Promise<void> {
+   // 清理缓存
+   this.hardwareCache = {};
+   this.log('info', 'HardwareInfoService destroyed');
+ }
+
+ /**
    * 获取方法描述
    */
   protected getMethodDescription(methodName: string): string | undefined {
@@ -131,7 +140,7 @@ export class HardwareInfoService extends BaseService {
 
       return {
         total: mem.total,
-        modules: memLayout.map(module => ({
+        modules: memLayout.map((module: any) => ({
           size: module.size,
           bank: module.bank,
           type: module.type,
@@ -146,9 +155,9 @@ export class HardwareInfoService extends BaseService {
         })),
         summary: {
           totalSlots: memLayout.length,
-          totalCapacity: memLayout.reduce((sum, module) => sum + (module.size || 0), 0),
-          types: [...new Set(memLayout.map(m => m.type).filter(Boolean))],
-          speeds: [...new Set(memLayout.map(m => m.clockSpeed).filter(Boolean))]
+          totalCapacity: memLayout.reduce((sum: number, module: any) => sum + (module.size || 0), 0),
+          types: [...new Set(memLayout.map((m: any) => m.type).filter(Boolean))],
+          speeds: [...new Set(memLayout.map((m: any) => m.clockSpeed).filter(Boolean))]
         }
       };
     } catch (error) {
@@ -165,7 +174,7 @@ export class HardwareInfoService extends BaseService {
       const graphics = await si.graphics();
 
       return {
-        controllers: graphics.controllers.map(controller => ({
+        controllers: graphics.controllers.map((controller: any) => ({
           vendor: controller.vendor,
           model: controller.model,
           bus: controller.bus,
@@ -185,7 +194,7 @@ export class HardwareInfoService extends BaseService {
           clockCore: controller.clockCore,
           clockMemory: controller.clockMemory
         })),
-        displays: graphics.displays.map(display => ({
+        displays: graphics.displays.map((display: any) => ({
           vendor: display.vendor,
           model: display.model,
           main: display.main,
@@ -266,7 +275,7 @@ export class HardwareInfoService extends BaseService {
       ]);
 
       return {
-        physicalDisks: diskLayout.map(disk => ({
+        physicalDisks: diskLayout.map((disk: any) => ({
           device: disk.device,
           type: disk.type,
           name: disk.name,
@@ -285,7 +294,7 @@ export class HardwareInfoService extends BaseService {
           smartStatus: disk.smartStatus,
           temperature: disk.temperature
         })),
-        blockDevices: blockDevices.map(device => ({
+        blockDevices: blockDevices.map((device: any) => ({
           name: device.name,
           identifier: device.identifier,
           type: device.type,
@@ -314,7 +323,7 @@ export class HardwareInfoService extends BaseService {
     try {
       const audio = await si.audio();
 
-      return audio.map(device => ({
+      return audio.map((device: any) => ({
         name: device.name,
         manufacturer: device.manufacturer,
         revision: device.revision,
@@ -339,7 +348,7 @@ export class HardwareInfoService extends BaseService {
     try {
       const usb = await si.usb();
 
-      return usb.map(device => ({
+      return usb.map((device: any) => ({
         id: device.id,
         bus: device.bus,
         deviceId: device.deviceId,
@@ -349,8 +358,8 @@ export class HardwareInfoService extends BaseService {
         vendor: device.vendor,
         manufacturer: device.manufacturer,
         maxPower: device.maxPower,
-        default: device.default,
-        serial: device.serial
+        // default: device.default,
+        // serial: device.serial
       }));
     } catch (error) {
       this.log('error', 'Error getting USB devices', error);
@@ -394,7 +403,7 @@ export class HardwareInfoService extends BaseService {
         },
         storage: {
           devices: storage.physicalDisks.length,
-          totalCapacity: storage.physicalDisks.reduce((sum, disk) => sum + (disk.size || 0), 0)
+          totalCapacity: storage.physicalDisks.reduce((sum: number, disk: any) => sum + (disk.size || 0), 0)
         }
       };
     } catch (error) {

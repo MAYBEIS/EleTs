@@ -119,22 +119,6 @@ const api = {
     getNetworkOverview: () => api.client.call('Network', 'getNetworkOverview')
   }
 }
-// 定义一个安全的 IPC 对象，只暴露需要的方法
-const api = {
-  // 安全地暴露 ipcRenderer 的 invoke 和 send 方法
-  invoke: (channel: string, ...args: any[]) => ipcRenderer.invoke(channel, ...args),
-  send: (channel: string, ...args: any[]) => ipcRenderer.send(channel, ...args),
-  // 添加其他需要的方法
-  on: (channel: string, func: (...args: any[]) => void) => {
-    const subscription = (_event: Electron.IpcRendererEvent, ...args: any[]) => func(...args)
-    ipcRenderer.on(channel, subscription)
-    return () => ipcRenderer.removeListener(channel, subscription)
-  },
-  once: (channel: string, func: (...args: any[]) => void) => {
-    ipcRenderer.once(channel, (_event, ...args) => func(...args))
-  },
-  removeAllListeners: (channel: string) => ipcRenderer.removeAllListeners(channel)
-}
 
 // Use `contextBridge` APIs to expose Electron APIs to
 // render only if context isolation is enabled, otherwise
