@@ -2,7 +2,7 @@
  * @Author: Maybe 1913093102@qq.com
  * @Date: 2025-09-02
  * @LastEditors: Maybe 1913093102@qq.com
- * @LastEditTime: 2025-09-02
+ * @LastEditTime: 2025-09-21
  * @FilePath: \EleTs\src\renderer/src/view/LibraryPage.vue
  * @Description: 音乐库页面组件
 -->
@@ -25,19 +25,7 @@
     <div class="library-content">
       <a-tabs v-model:activeKey="activeTab">
         <a-tab-pane key="playlists" tab="播放列表">
-          <div class="playlists-grid">
-            <a-card
-              v-for="playlist in playlists"
-              :key="playlist.id"
-              hoverable
-              @click="goToPlaylist(playlist.id)"
-            >
-              <template #cover>
-                <img :src="playlist.coverArt || '/placeholder-300x200.png'" alt="playlist cover" />
-              </template>
-              <a-card-meta :title="playlist.name" :description="`${playlist.trackCount} 首歌曲`" />
-            </a-card>
-          </div>
+          <PlaylistManager />
         </a-tab-pane>
         
         <a-tab-pane key="artists" tab="艺术家">
@@ -78,18 +66,13 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { PlusOutlined } from '@ant-design/icons-vue'
+import PlaylistManager from '../components/PlaylistManager.vue'
 
 const router = useRouter()
 
 const activeTab = ref('playlists')
-const playlists = ref([])
 const artists = ref([])
 const albums = ref([])
-
-// 跳转到播放列表
-const goToPlaylist = (playlistId: string) => {
-  router.push({ name: 'Playlist', params: { id: playlistId } })
-}
 
 // 跳转到艺术家
 const goToArtist = (artistId: string) => {
@@ -109,25 +92,8 @@ const addMusic = () => {
 // 模拟数据
 onMounted(async () => {
   // 在实际应用中，这些数据将从 IPC 接口获取
-  // playlists.value = await window.api.invoke('music:get-playlists')
   // artists.value = await window.api.invoke('music:get-artists')
   // albums.value = await window.api.invoke('music:get-albums')
-  
-  // 模拟播放列表数据
-  playlists.value = [
-    {
-      id: 'p001',
-      name: '我的收藏',
-      coverArt: '/placeholder-300x200.png',
-      trackCount: 15
-    },
-    {
-      id: 'p002',
-      name: '放松音乐',
-      coverArt: '/placeholder-300x200.png',
-      trackCount: 8
-    }
-  ]
   
   // 模拟艺术家数据
   artists.value = [
@@ -168,12 +134,6 @@ onMounted(async () => {
 
 .library-content {
   margin-top: 24px;
-}
-
-.playlists-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 24px;
 }
 
 .artists-grid {

@@ -48,6 +48,12 @@ const routes: RouteRecordRaw[] = [
     path: '/music-test',
     name: 'MusicTest',
     component: MusicPlayerTest
+  },
+  {
+    path: '/playlist-detail/:id',
+    name: 'PlaylistDetail',
+    component: () => import('../view/PlaylistDetail.vue'),
+    props: true
   }
 ]
 

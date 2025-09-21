@@ -116,6 +116,58 @@ export const useMusicStore = defineStore('music', {
       this.playlist = []
       this.currentIndex = -1
       this.currentTrack = null
+    },
+    
+    // 播放列表管理功能
+    addTrackToPlaylist(track: Track) {
+      this.playlist.push(track)
+    },
+    
+    removeTrackFromPlaylist(index: number) {
+      if (index >= 0 && index < this.playlist.length) {
+        this.playlist.splice(index, 1)
+        if (this.currentIndex >= index) {
+          this.currentIndex = Math.max(0, this.currentIndex - 1)
+        }
+      }
+    },
+    
+    moveTrackInPlaylist(fromIndex: number, toIndex: number) {
+      if (fromIndex >= 0 && fromIndex < this.playlist.length &&
+          toIndex >= 0 && toIndex < this.playlist.length) {
+        const track = this.playlist.splice(fromIndex, 1)[0]
+        this.playlist.splice(toIndex, 0, track)
+        
+        // 更新当前索引
+        if (this.currentIndex === fromIndex) {
+          this.currentIndex = toIndex
+        } else if (fromIndex < this.currentIndex && toIndex >= this.currentIndex) {
+          this.currentIndex--
+        } else if (fromIndex > this.currentIndex && toIndex <= this.currentIndex) {
+          this.currentIndex++
+        }
+      }
+    },
+    
+    // 播放列表管理
+    getPlaylists(): Playlist[] {
+      // 在实际应用中，这将从存储中获取播放列表
+      return []
+    },
+    
+    addPlaylist(playlist: Playlist) {
+      // 在实际应用中，这将添加播放列表到存储
+      console.log('添加播放列表:', playlist)
+    },
+    
+    updatePlaylist(playlist: Playlist) {
+      // 在实际应用中，这将更新存储中的播放列表
+      console.log('更新播放列表:', playlist)
+    },
+    
+    deletePlaylist(id: string) {
+      // 在实际应用中，这将从存储中删除播放列表
+      console.log('删除播放列表:', id)
     }
   }
 })
